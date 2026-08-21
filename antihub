@@ -1,0 +1,2881 @@
+--[[
+    ══════════════════════════════════════════════════════════════════
+    █████╗ ███╗   ██╗████████╗██╗██╗  ██╗██╗   ██╗██████╗ 
+   ██╔══██╗████╗  ██║╚══██╔══╝██║██║  ██║██║   ██║██╔══██╗
+   ███████║██╔██╗ ██║   ██║   ██║███████║██║   ██║██████╔╝
+   ██╔══██║██║╚██╗██║   ██║   ██║██╔══██║██║   ██║██╔══██╗
+   ██║  ██║██║ ╚████║   ██║   ██║██║  ██║╚██████╔╝██████╔╝
+   ╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ 
+    AntiHub - Roll Anime to Fight! (V9.0 - True Engine Automation & Instant Fixes)
+    ══════════════════════════════════════════════════════════════════
+]]
+
+-- Services
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualUser = game:GetService("VirtualUser")
+local Workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- Clean previous instances & stop previous threads
+if _G.AntiHubThreads then
+    for _, t in ipairs(_G.AntiHubThreads) do
+        pcall(function() task.cancel(t) end)
+    end
+end
+_G.AntiHubThreads = {}
+
+local ScreenParent = (gethui and gethui()) or (syn and syn.protect_gui and CoreGui) or CoreGui:FindFirstChild("RobloxGui") or CoreGui
+
+local function CleanAllExistingUIs()
+    local targets = {CoreGui, CoreGui:FindFirstChild("RobloxGui"), LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")}
+    if gethui then pcall(function() table.insert(targets, gethui()) end) end
+    for _, parent in ipairs(targets) do
+        if parent then
+            for _, child in ipairs(parent:GetChildren()) do
+                if child.Name == "AntiHub_RollAnime_UI" then
+                    pcall(function() child:Destroy() end)
+                end
+            end
+        end
+    end
+end
+CleanAllExistingUIs()
+
+local Remotes = ReplicatedStorage:FindFirstChild("Remotes")
+local Modules = ReplicatedStorage:FindFirstChild("Modules")
+
+local CONFIG_FOLDER = "Antihub-Dumper"
+local CONFIG_FILE = CONFIG_FOLDER .. "/RollAnimeToFight_Config.json"
+
+-- Language Dictionary
+local Lang = {
+    Current = "TH",
+    Texts = {
+        Title = {TH = "AntiHub | Roll An Anime To Fight", EN = "AntiHub | Roll An Anime To Fight"},
+        SubTitle = {TH = "Speed Edition • Roll Anime to Fight!", EN = "Speed Edition • Roll Anime to Fight!"},
+        NavHome = {TH = "หน้าแรก", EN = "Home"},
+        NavMain = {TH = "เมนูหลัก", EN = "Main"},
+        NavRoll = {TH = "สุ่ม & ซื้อตัว", EN = "Roll & Units"},
+        NavUpgrade = {TH = "อัปเกรด", EN = "Upgrades"},
+        NavRewards = {TH = "รางวัล", EN = "Rewards"},
+        NavTeleport = {TH = "วาร์ป", EN = "Teleports"},
+        NavSettings = {TH = "อื่นๆ", EN = "Miscellaneous"},
+
+        -- Home Tab
+        SecPlayerStatus = {TH = "สถานะผู้เล่น", EN = "Player Status"},
+        SecDiscord = {TH = "คอมมูนิตี้ & ดิสคอร์ด", EN = "Community & Discord"},
+        DiscordDesc = {TH = "เข้าร่วม Discord เพื่อรับข่าวสาร อัปเดต และสคริปต์ใหม่ๆ", EN = "Join our Discord for news, updates and new scripts"},
+        CopyDiscordBtn = {TH = "คัดลอกลิงก์ Discord (Copy Invite)", EN = "Copy Discord Invite"},
+
+        -- Main Tab
+        SecFight = {TH = "Farming Wave", EN = "Farming Wave"},
+        AutoStartWave = {TH = "Auto Start Wave", EN = "Auto Start Wave"},
+        AutoStartWaveDesc = {TH = "เริ่มเวฟใหม่อัตโนมัติเมื่อพร้อม", EN = "Starts waves automatically"},
+        SecPlot = {TH = "Plot Status", EN = "Plot Status"},
+        CurrentPlotInfo = {TH = "Plot ปัจจุบัน:", EN = "Current Plot:"},
+
+        -- Roll Tab
+        SecRoll = {TH = "Auto Roll", EN = "Auto Roll"},
+        AutoRoll = {TH = "Auto Roll Units", EN = "Auto Roll Units"},
+        AutoRollDesc = {TH = "วนลูปสุ่มตัวละครอัตโนมัติ", EN = "Rolls units automatically"},
+        RollDelay = {TH = "Roll Interval Delay (s)", EN = "Roll Interval Delay (s)"},
+
+        SecBuy = {TH = "Direct Rarity Buy", EN = "Direct Rarity Buy"},
+        AutoBuy = {TH = "Auto Buy Units", EN = "Auto Buy Units"},
+        AutoBuyDesc = {TH = "ซื้อเฉพาะตัวและ Mutation ที่เลือกตามระดับ", EN = "Buys selected units and mutations"},
+
+        SecSell = {TH = "Direct Rarity Sell", EN = "Direct Rarity Sell"},
+        AutoSell = {TH = "Auto Sell Units", EN = "Auto Sell Units"},
+        AutoSellDesc = {TH = "ขายตัวละครตามระดับที่กำหนด", EN = "Sells selected unit rarities"},
+        SellRaritiesList = {TH = "Rarities to Sell", EN = "Rarities to Sell"},
+
+        -- Upgrade Tab
+        SecUpgrade = {TH = "Farming Upgrades", EN = "Farming Upgrades"},
+        AutoUpgrade = {TH = "Auto Upgrade Stats", EN = "Auto Upgrade Stats"},
+        AutoUpgradeDesc = {TH = "อัปเกรดสถานะฐานอัตโนมัติ", EN = "Upgrades selected base stats"},
+        UpgradeStatsList = {TH = "Upgrade Types", EN = "Upgrade Types"},
+
+        -- Rewards Tab
+        SecRewards = {TH = "Automated Claims", EN = "Automated Claims"},
+        AutoSpinWheel = {TH = "Auto Spin Wheel", EN = "Auto Spin Wheel"},
+        AutoSpinWheelDesc = {TH = "หมุนวงล้อเมื่อมีสิทธิ์ฟรี", EN = "Spins wheel when available"},
+        AutoClaimBPRewards = {TH = "Auto BP Rewards", EN = "Auto BP Rewards"},
+        AutoClaimBPRewardsDesc = {TH = "รับของรางวัล BP อัตโนมัติ", EN = "Claims BP rewards"},
+        AutoClaimBPQuests = {TH = "Auto BP Quests", EN = "Auto BP Quests"},
+        AutoClaimBPQuestsDesc = {TH = "รับเควสต์ที่เสร็จแล้วอัตโนมัติ", EN = "Claims finished BP quests"},
+        RedeemAllCodes = {TH = "Redeem All Game Codes", EN = "Redeem All Game Codes"},
+
+        -- Teleport Tab
+        SecTeleport = {TH = "Instant Waypoints", EN = "Instant Waypoints"},
+
+        -- Settings Tab
+        SecSafety = {TH = "Farming & Safety", EN = "Farming & Safety"},
+        AntiAFK = {TH = "Anti-AFK", EN = "Anti-AFK"},
+        AntiAFKDesc = {TH = "ป้องกันตัดการเชื่อมต่อ 20 นาที", EN = "Prevents 20-min idle kick"},
+        InfiniteJump = {TH = "Infinite Jump", EN = "Infinite Jump"},
+        InfiniteJumpDesc = {TH = "กระโดดกลางอากาศได้ตลอดเวลา", EN = "Jump repeatedly in air"},
+        Noclip = {TH = "Noclip", EN = "Noclip"},
+        NoclipDesc = {TH = "เดินทะลุกำแพงและสิ่งของ", EN = "Pass through collisions"},
+
+        SecAppearance = {TH = "Appearance & Settings", EN = "Appearance & Settings"},
+        SelectTheme = {TH = "UI Theme", EN = "UI Theme"},
+        WindowTransparency = {TH = "Window Transparency", EN = "Window Transparency"},
+        MenuKeybind = {TH = "Menu Keybind", EN = "Menu Keybind"},
+        SaveConfig = {TH = "Save Current Settings", EN = "Save Current Settings"}
+    }
+}
+
+local function T(key)
+    local item = Lang.Texts[key]
+    if item then
+        return item[Lang.Current] or item["EN"] or ""
+    end
+    return key
+end
+
+local OrderedRarities = {
+    "Common",
+    "Rare",
+    "Epic",
+    "Legendary",
+    "Mythic",
+    "Limited",
+    "Secret",
+    "Supreme",
+    "God"
+}
+
+local UnitsByRarity = {
+    ["Common"] = {"Zoro", "Krillin", "Luffy", "Ussop", "Itadori", "Rock Lee"},
+    ["Rare"] = {"Maki", "Goku", "Sakura", "Mob", "Junwoo", "Choji"},
+    ["Epic"] = {"Tanjiro", "Shinra", "Guts", "Manji", "Ban", "Piccolo", "Renji", "Shikamaru"},
+    ["Legendary"] = {"Erwin", "Sukuna", "Gojo", "Naruto", "Saitama", "Trunks", "Grimmjow", "Zenitsu", "Nanami"},
+    ["Mythic"] = {"Stark", "Kokushibo", "Simo Hayha", "Hoshina", "Ace", "Broly", "Orihime", "Rengoku", "Toji", "Kashimo", "Kakashi", "Tobi", "Akaza", "Kisuke", "Yoruichi"},
+    ["Limited"] = {"Entoma", "Hakari (JackPot)", "Shalltear", "Juuzou", "Milim", "Tatsumaki", "Yugi", "DarkMagician", "DarkMagicianGirl", "Akainu", "Kizaru", "Kuzan", "Okurun", "Yor", "Lelouch", "Cosmic Garou", "Mash", "Genos", "Julius", "Kaneki", "Denji", "Sakamoto", "Sakamoto (Fit)", "Frieza", "Black Frieza", "Yujiro", "Saitama (Serious)", "Albedo", "Katakuri", "Makima", "Rudeus", "Itachi"},
+    ["Secret"] = {"Dio", "Frieren", "Yhwatch", "Jiren", "Byakuya", "Ulquiorra", "Kenpachi", "Gyomei", "Megumi", "Mahoraga", "Yuta", "Hakari", "Mojuro", "Sasuke", "Orochimaru", "Jiraiya", "Tsunade", "Naruto (Six Path)", "Douma", "Sakura (HundredSeal)", "Sasuke (Adult)", "Magellan"},
+    ["Supreme"] = {"Kaguya", "Naruto Baryon"},
+    ["God"] = {"Beerus", "Rimuru", "Whis", "Yamamoto", "Aizen (Transcendent)", "Ichigo", "Dabura", "Madara", "Hashirama", "Yorichi", "Shanks", "Ainz", "Gojo (Shibuya)", "Yuji (Modulo)", "Madara (Six Path)", "Doflamingo", "Boros", "Boros v2", "GunDevil", "Goku (Black)", "Sukuna (Heian)", "Muzan", "Muzan (Evolved)"}
+}
+
+local UnitNameToRarityMap = {}
+local DisplayNameToRarityMap = {
+    ["Zero"] = "Common", ["Keririn"] = "Common", ["Luppi"] = "Common", ["Usoff"] = "Common", ["Itadoro"] = "Common", ["Solid Lei"] = "Common",
+    ["Mika"] = "Rare", ["Goke"] = "Rare", ["Sukora"] = "Rare", ["Mobi"] = "Rare", ["Janwoo"] = "Rare", ["Soji"] = "Rare",
+    ["Tanjuro"] = "Epic", ["Shinrat"] = "Epic", ["Got"] = "Epic", ["Manji"] = "Epic", ["Bon"] = "Epic", ["Picurro"] = "Epic", ["Rinnju"] = "Epic", ["Shikamura"] = "Epic",
+    ["Erwon"] = "Legendary", ["Sakuna"] = "Legendary", ["Goji"] = "Legendary", ["Noruto"] = "Legendary", ["Saitomo"] = "Legendary", ["Truck"] = "Legendary", ["Grimmick"] = "Legendary", ["Zinichou"] = "Legendary", ["Nonomi"] = "Legendary",
+    ["Coyote"] = "Mythic", ["Kokushiro"] = "Mythic", ["Shimo Haya"] = "Mythic", ["Hoshira"] = "Mythic", ["Acer"] = "Mythic", ["Brocolli"] = "Mythic", ["Orihemi"] = "Mythic", ["Rengundam"] = "Mythic", ["Joti"] = "Mythic", ["Kashimi"] = "Mythic", ["Kebashi"] = "Mythic", ["Tomi"] = "Mythic", ["Akazo"] = "Mythic", ["Kiwusuke"] = "Mythic", ["Yoriki"] = "Mythic",
+    ["Deyo"] = "Secret", ["Fryren"] = "Secret", ["Yuwah"] = "Secret", ["Jerin"] = "Secret", ["Brakura"] = "Secret", ["Ulquiopta"] = "Secret", ["Kenie"] = "Secret", ["Gyomain"] = "Secret", ["Megumo"] = "Secret", ["Mahorogo"] = "Secret", ["Yutta"] = "Secret", ["Hakuro"] = "Secret", ["Moru"] = "Secret", ["Susuko"] = "Secret", ["Uromaru"] = "Secret", ["Giraya"] = "Secret", ["Sontade"] = "Secret", ["Duma"] = "Secret", ["Magullan"] = "Secret",
+    ["Bills"] = "God", ["Remura"] = "God", ["Wise"] = "God", ["Yamumoto"] = "God", ["Aisen (Divine)"] = "God", ["Isogo (True Form)"] = "God", ["Daburo"] = "God", ["Madura"] = "God", ["Hashyrama"] = "God", ["Yoichi"] = "God", ["Shancks"] = "God", ["Ais"] = "God", ["Goji (Shinjuku)"] = "God", ["Flamingo"] = "God", ["Boris"] = "God", ["Michael"] = "God"
+}
+
+for cleanR, uList in pairs(UnitsByRarity) do
+    for _, uName in ipairs(uList) do
+        UnitNameToRarityMap[uName] = cleanR
+        UnitNameToRarityMap[uName:lower()] = cleanR
+    end
+end
+
+local UnitPriceMap = {
+    ["Zoro"] = 200, ["Zero"] = 200, ["Krillin"] = 200, ["Keririn"] = 200, ["Luffy"] = 275, ["Luppi"] = 275, ["Ussop"] = 300, ["Usoff"] = 300, ["Itadori"] = 500, ["Itadoro"] = 500, ["Rock Lee"] = 750, ["Solid Lei"] = 750,
+    ["Maki"] = 1000, ["Mika"] = 1000, ["Goku"] = 1000, ["Goke"] = 1000, ["Sakura"] = 1800, ["Sukora"] = 1800, ["Mob"] = 1200, ["Mobi"] = 1200, ["Junwoo"] = 1800, ["Janwoo"] = 1800, ["Choji"] = 3500, ["Soji"] = 3500,
+    ["Tanjiro"] = 4800, ["Tanjuro"] = 4800, ["Shinra"] = 4200, ["Shinrat"] = 4200, ["Guts"] = 6000, ["Got"] = 6000, ["Manji"] = 5200, ["Ban"] = 4500, ["Bon"] = 4500, ["Piccolo"] = 7800, ["Picurro"] = 7800, ["Renji"] = 7000, ["Rinnju"] = 7000, ["Shikamaru"] = 10000, ["Shikamura"] = 10000,
+    ["Erwin"] = 20000, ["Erwon"] = 20000, ["Sukuna"] = 17500, ["Sakuna"] = 17500, ["Gojo"] = 18000, ["Goji"] = 18000, ["Naruto"] = 24000, ["Noruto"] = 24000, ["Saitama"] = 16000, ["Saitomo"] = 16000, ["Trunks"] = 36000, ["Truck"] = 36000, ["Grimmjow"] = 85000, ["Grimmick"] = 85000, ["Zenitsu"] = 120000, ["Zinichou"] = 120000, ["Nanami"] = 200000, ["Nonomi"] = 200000,
+    ["Stark"] = 60000, ["Coyote"] = 60000, ["Kokushibo"] = 70000, ["Kokushiro"] = 70000, ["Simo Hayha"] = 75000, ["Shimo Haya"] = 75000, ["Hoshina"] = 80000, ["Hoshira"] = 80000, ["Ace"] = 85000, ["Acer"] = 85000, ["Broly"] = 127500, ["Brocolli"] = 127500, ["Orihime"] = 200000, ["Orihemi"] = 200000, ["Rengoku"] = 250000, ["Rengundam"] = 250000, ["Toji"] = 350000, ["Joti"] = 350000, ["Kashimo"] = 450000, ["Kashimi"] = 450000, ["Kakashi"] = 650000, ["Kebashi"] = 650000, ["Tobi"] = 650000, ["Tomi"] = 650000, ["Akaza"] = 50500, ["Akazo"] = 50500, ["Kisuke"] = 350000, ["Kiwusuke"] = 350000, ["Yoruichi"] = 375000, ["Yoriki"] = 375000,
+    ["Dio"] = 200000, ["Deyo"] = 200000, ["Frieren"] = 275000, ["Fryren"] = 275000, ["Yhwatch"] = 310000, ["Yuwah"] = 310000, ["Jiren"] = 450000, ["Jerin"] = 450000, ["Byakuya"] = 700000, ["Brakura"] = 700000, ["Ulquiorra"] = 750000, ["Ulquiopta"] = 750000, ["Kenpachi"] = 1125000, ["Kenie"] = 1125000, ["Gyomei"] = 1500000, ["Gyomain"] = 1500000, ["Megumi"] = 2500000, ["Megumo"] = 2500000, ["Yuta"] = 3100000, ["Yutta"] = 3100000, ["Hakari"] = 3900000, ["Hakuro"] = 3900000, ["Mojuro"] = 4500000, ["Moru"] = 4500000, ["Sasuke"] = 5000000, ["Susuko"] = 5000000, ["Orochimaru"] = 5000000, ["Uromaru"] = 5000000, ["Jiraiya"] = 5000000, ["Giraya"] = 5000000, ["Tsunade"] = 5000000, ["Sontade"] = 5000000,
+    ["Beerus"] = 650000, ["Bills"] = 650000, ["Rimuru"] = 750000, ["Remura"] = 750000, ["Whis"] = 1125000, ["Wise"] = 1125000, ["Yamamoto"] = 1750000, ["Yamumoto"] = 1750000, ["Aizen (Transcendent)"] = 3500000, ["Aisen (Divine)"] = 3500000, ["Ichigo"] = 4000000, ["Isogo (True Form)"] = 4000000, ["Dabura"] = 6000000, ["Daburo"] = 6000000, ["Madara"] = 7500000, ["Madura"] = 7500000, ["Hashirama"] = 7500000, ["Hashyrama"] = 7500000
+}
+
+local AllMutationsList = {
+    "All (ทุก Mutation)",
+    "No Mutation (ไม่ติด Mutation)",
+    "Diamond",
+    "Gold",
+    "Demon",
+    "Destroyer",
+    "Astronaut",
+    "Hollow",
+    "Slayer",
+    "Cursed",
+    "Parasite",
+    "Lava",
+    "Radioactive",
+    "Hacker",
+    "Rainbow"
+}
+
+local AllUpgradeTypes = {"Gold", "Luck", "Slots", "Inventory"}
+
+-- Multi-Theme System
+local Themes = {
+    ["Speed Red"] = {
+        MainBg = Color3.fromRGB(11, 19, 28),
+        SidebarBg = Color3.fromRGB(8, 14, 22),
+        CardBg = Color3.fromRGB(38, 18, 24),
+        CardStroke = Color3.fromRGB(65, 25, 35),
+        InputBg = Color3.fromRGB(24, 12, 16),
+        Accent = Color3.fromRGB(230, 45, 60),
+        AccentGradient = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(230, 45, 60)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 75, 90))
+        },
+        TextPrimary = Color3.fromRGB(245, 248, 252),
+        TextSecondary = Color3.fromRGB(140, 155, 175),
+        ToggleOn = Color3.fromRGB(230, 45, 60),
+        ToggleOff = Color3.fromRGB(30, 25, 35),
+        Success = Color3.fromRGB(80, 240, 140)
+    },
+    ["Neon Purple"] = {
+        MainBg = Color3.fromRGB(13, 10, 20),
+        SidebarBg = Color3.fromRGB(8, 6, 13),
+        CardBg = Color3.fromRGB(20, 16, 30),
+        CardStroke = Color3.fromRGB(42, 32, 62),
+        InputBg = Color3.fromRGB(15, 12, 23),
+        Accent = Color3.fromRGB(148, 55, 255),
+        AccentGradient = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(148, 55, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(195, 95, 255))
+        },
+        TextPrimary = Color3.fromRGB(245, 245, 255),
+        TextSecondary = Color3.fromRGB(135, 130, 155),
+        ToggleOn = Color3.fromRGB(148, 55, 255),
+        ToggleOff = Color3.fromRGB(32, 26, 44),
+        Success = Color3.fromRGB(100, 245, 150)
+    },
+    ["Cyber Blue"] = {
+        MainBg = Color3.fromRGB(8, 14, 24),
+        SidebarBg = Color3.fromRGB(5, 9, 16),
+        CardBg = Color3.fromRGB(12, 22, 38),
+        CardStroke = Color3.fromRGB(25, 48, 80),
+        InputBg = Color3.fromRGB(9, 17, 28),
+        Accent = Color3.fromRGB(0, 170, 255),
+        AccentGradient = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 170, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(70, 220, 255))
+        },
+        TextPrimary = Color3.fromRGB(240, 248, 255),
+        TextSecondary = Color3.fromRGB(120, 150, 180),
+        ToggleOn = Color3.fromRGB(0, 170, 255),
+        ToggleOff = Color3.fromRGB(20, 35, 55),
+        Success = Color3.fromRGB(70, 250, 180)
+    },
+    ["Emerald Matrix"] = {
+        MainBg = Color3.fromRGB(8, 18, 12),
+        SidebarBg = Color3.fromRGB(4, 12, 7),
+        CardBg = Color3.fromRGB(14, 28, 20),
+        CardStroke = Color3.fromRGB(28, 58, 40),
+        InputBg = Color3.fromRGB(10, 20, 14),
+        Accent = Color3.fromRGB(0, 230, 115),
+        AccentGradient = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 230, 115)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 255, 180))
+        },
+        TextPrimary = Color3.fromRGB(235, 255, 242),
+        TextSecondary = Color3.fromRGB(120, 165, 135),
+        ToggleOn = Color3.fromRGB(0, 230, 115),
+        ToggleOff = Color3.fromRGB(18, 40, 26),
+        Success = Color3.fromRGB(0, 230, 115)
+    },
+    ["Sakura Pink"] = {
+        MainBg = Color3.fromRGB(22, 10, 18),
+        SidebarBg = Color3.fromRGB(14, 6, 11),
+        CardBg = Color3.fromRGB(34, 16, 28),
+        CardStroke = Color3.fromRGB(68, 32, 56),
+        InputBg = Color3.fromRGB(25, 11, 20),
+        Accent = Color3.fromRGB(255, 75, 160),
+        AccentGradient = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 75, 160)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 140, 200))
+        },
+        TextPrimary = Color3.fromRGB(255, 240, 248),
+        TextSecondary = Color3.fromRGB(180, 130, 160),
+        ToggleOn = Color3.fromRGB(255, 75, 160),
+        ToggleOff = Color3.fromRGB(48, 22, 40),
+        Success = Color3.fromRGB(120, 255, 180)
+    },
+    ["Blood Crimson"] = {
+        MainBg = Color3.fromRGB(20, 8, 8),
+        SidebarBg = Color3.fromRGB(13, 4, 4),
+        CardBg = Color3.fromRGB(32, 12, 12),
+        CardStroke = Color3.fromRGB(65, 22, 22),
+        InputBg = Color3.fromRGB(22, 9, 9),
+        Accent = Color3.fromRGB(255, 45, 65),
+        AccentGradient = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 45, 65)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 110, 125))
+        },
+        TextPrimary = Color3.fromRGB(255, 240, 240),
+        TextSecondary = Color3.fromRGB(175, 125, 125),
+        ToggleOn = Color3.fromRGB(255, 45, 65),
+        ToggleOff = Color3.fromRGB(45, 16, 16),
+        Success = Color3.fromRGB(255, 120, 140)
+    },
+    ["Midnight OLED"] = {
+        MainBg = Color3.fromRGB(5, 5, 5),
+        SidebarBg = Color3.fromRGB(0, 0, 0),
+        CardBg = Color3.fromRGB(12, 12, 12),
+        CardStroke = Color3.fromRGB(28, 28, 28),
+        InputBg = Color3.fromRGB(8, 8, 8),
+        Accent = Color3.fromRGB(220, 220, 220),
+        AccentGradient = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(220, 220, 220)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+        },
+        TextPrimary = Color3.fromRGB(255, 255, 255),
+        TextSecondary = Color3.fromRGB(140, 140, 140),
+        ToggleOn = Color3.fromRGB(220, 220, 220),
+        ToggleOff = Color3.fromRGB(24, 24, 24),
+        Success = Color3.fromRGB(140, 255, 160)
+    },
+    ["Sunset Gold"] = {
+        MainBg = Color3.fromRGB(20, 13, 8),
+        SidebarBg = Color3.fromRGB(13, 8, 4),
+        CardBg = Color3.fromRGB(30, 20, 12),
+        CardStroke = Color3.fromRGB(60, 40, 22),
+        InputBg = Color3.fromRGB(22, 14, 8),
+        Accent = Color3.fromRGB(255, 160, 40),
+        AccentGradient = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 160, 40)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 205, 90))
+        },
+        TextPrimary = Color3.fromRGB(255, 250, 240),
+        TextSecondary = Color3.fromRGB(175, 145, 120),
+        ToggleOn = Color3.fromRGB(255, 160, 40),
+        ToggleOff = Color3.fromRGB(45, 28, 16),
+        Success = Color3.fromRGB(130, 255, 140)
+    },
+    ["Frost Cyan"] = {
+        MainBg = Color3.fromRGB(8, 16, 22),
+        SidebarBg = Color3.fromRGB(4, 10, 14),
+        CardBg = Color3.fromRGB(14, 26, 36),
+        CardStroke = Color3.fromRGB(28, 52, 70),
+        InputBg = Color3.fromRGB(10, 18, 25),
+        Accent = Color3.fromRGB(40, 220, 240),
+        AccentGradient = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 220, 240)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(130, 240, 255))
+        },
+        TextPrimary = Color3.fromRGB(240, 252, 255),
+        TextSecondary = Color3.fromRGB(130, 165, 185),
+        ToggleOn = Color3.fromRGB(40, 220, 240),
+        ToggleOff = Color3.fromRGB(20, 38, 52),
+        Success = Color3.fromRGB(90, 255, 200)
+    }
+}
+
+local ThemeNames = {
+    "Speed Red",
+    "Neon Purple",
+    "Cyber Blue",
+    "Emerald Matrix",
+    "Sakura Pink",
+    "Blood Crimson",
+    "Midnight OLED",
+    "Sunset Gold",
+    "Frost Cyan"
+}
+
+-- Configuration State
+local Config = {
+    AutoStartWave = false,
+    AutoRoll = false,
+    RollDelay = 3.0,
+
+    -- Auto Buy (Rarity Rules Multi-Tier)
+    AutoBuy = false,
+    SelectedBuyRarities = {
+        ["Legendary"] = true,
+        ["Mythic"] = true,
+        ["Limited"] = true,
+        ["Secret"] = true,
+        ["God"] = true
+    },
+    RarityRuleCharacters = {
+        ["Legendary"] = {},
+        ["Mythic"] = {},
+        ["Limited"] = {},
+        ["Secret"] = {},
+        ["God"] = {},
+        ["Common"] = {},
+        ["Rare"] = {},
+        ["Epic"] = {},
+        ["Supreme"] = {}
+    },
+    RarityRuleMutations = {
+        ["Legendary"] = {["All (ทุก Mutation)"] = true},
+        ["Mythic"] = {["All (ทุก Mutation)"] = true},
+        ["Limited"] = {["All (ทุก Mutation)"] = true},
+        ["Secret"] = {["All (ทุก Mutation)"] = true},
+        ["God"] = {["All (ทุก Mutation)"] = true},
+        ["Common"] = {["All (ทุก Mutation)"] = true},
+        ["Rare"] = {["All (ทุก Mutation)"] = true},
+        ["Epic"] = {["All (ทุก Mutation)"] = true},
+        ["Supreme"] = {["All (ทุก Mutation)"] = true}
+    },
+
+    -- Auto Sell
+    AutoSell = false,
+    SelectedSellRarities = {
+        ["Common"] = true,
+        ["Rare"] = true
+    },
+
+    -- Auto Upgrade
+    AutoUpgrade = false,
+    SelectedUpgrades = {
+        ["Gold"] = true,
+        ["Luck"] = true,
+        ["Slots"] = true,
+        ["Inventory"] = true
+    },
+
+    -- Auto Rewards
+    AutoSpinWheel = false,
+    AutoClaimBPRewards = false,
+    AutoClaimBPQuests = false,
+
+    -- Misc & Appearance
+    CurrentTheme = "Speed Red",
+    AntiAFK = true,
+    InfiniteJump = false,
+    Noclip = false,
+    MenuKeybind = "RightControl",
+    TransparencyLevel = 0.05
+}
+
+local Theme = Themes[Config.CurrentTheme] or Themes["Speed Red"]
+
+-- Save & Load Config
+local function SaveConfig()
+    pcall(function()
+        if writefile and makefolder then
+            if not isfolder(CONFIG_FOLDER) then
+                makefolder(CONFIG_FOLDER)
+            end
+            local saveData = {
+                AutoStartWave = Config.AutoStartWave,
+                AutoRoll = Config.AutoRoll,
+                RollDelay = Config.RollDelay,
+                AutoBuy = Config.AutoBuy,
+                SelectedBuyRarities = Config.SelectedBuyRarities,
+                RarityRuleCharacters = Config.RarityRuleCharacters,
+                RarityRuleMutations = Config.RarityRuleMutations,
+                AutoSell = Config.AutoSell,
+                SelectedSellRarities = Config.SelectedSellRarities,
+                AutoUpgrade = Config.AutoUpgrade,
+                SelectedUpgrades = Config.SelectedUpgrades,
+                AutoSpinWheel = Config.AutoSpinWheel,
+                AutoClaimBPRewards = Config.AutoClaimBPRewards,
+                AutoClaimBPQuests = Config.AutoClaimBPQuests,
+                AntiAFK = Config.AntiAFK,
+                MenuKeybind = Config.MenuKeybind,
+                CurrentTheme = Config.CurrentTheme,
+                TransparencyLevel = Config.TransparencyLevel,
+                Language = Lang.Current
+            }
+            writefile(CONFIG_FILE, HttpService:JSONEncode(saveData))
+        end
+    end)
+end
+
+local function SanitizeRarityTable(tbl)
+    if typeof(tbl) ~= "table" then return tbl end
+    local cleanTbl = {}
+    for k, v in pairs(tbl) do
+        local cleanK = string.gsub(tostring(k), "^%d+%s*-%s*", "")
+        cleanTbl[cleanK] = v
+    end
+    return cleanTbl
+end
+
+local function LoadConfig()
+    pcall(function()
+        if readfile and isfile and isfile(CONFIG_FILE) then
+            local data = HttpService:JSONDecode(readfile(CONFIG_FILE))
+            if data then
+                for k, v in pairs(data) do
+                    if Config[k] ~= nil then
+                        Config[k] = v
+                    end
+                end
+                if Config.SelectedBuyRarities then
+                    Config.SelectedBuyRarities = SanitizeRarityTable(Config.SelectedBuyRarities)
+                end
+                if Config.SelectedSellRarities then
+                    Config.SelectedSellRarities = SanitizeRarityTable(Config.SelectedSellRarities)
+                end
+                if data.Language then
+                    Lang.Current = data.Language
+                end
+                if data.CurrentTheme and Themes[data.CurrentTheme] then
+                    Theme = Themes[data.CurrentTheme]
+                end
+            end
+        end
+    end)
+end
+
+LoadConfig()
+
+-- Global Active Dropdown Closer (Prevents Overlapping)
+local AllOpenDropdowns = {}
+local function CloseAllDropdownsExcept(target)
+    for _, closeFunc in ipairs(AllOpenDropdowns) do
+        if closeFunc ~= target then
+            closeFunc()
+        end
+    end
+end
+
+-- Safe GUI Click Simulator
+local function SimulateClick(button)
+    if not button then return end
+    if firesignal then
+        pcall(function() firesignal(button.MouseButton1Down) end)
+        pcall(function() firesignal(button.MouseButton1Click) end)
+        pcall(function() firesignal(button.Activated) end)
+        pcall(function() firesignal(button.MouseButton1Up) end)
+    end
+end
+
+local function GetPlayerGold()
+    local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+    if leaderstats then
+        for _, item in ipairs(leaderstats:GetChildren()) do
+            if string.find(item.Name:lower(), "gold") or string.find(item.Name, "💰") or string.find(item.Name, "Gold") then
+                return tonumber(item.Value) or 0
+            end
+        end
+    end
+    return 0
+end
+
+-- ==================================================================
+-- INTERNAL INVENTORY ENGINE (Real UUIDs + GC + UI Sync)
+-- ==================================================================
+-- INTERNAL INVENTORY ENGINE (Real UUIDs + UI Sync)
+-- ==================================================================
+local GameInventoryModule = nil
+
+task.spawn(function()
+    pcall(function()
+        for _, func in ipairs(getgc(true)) do
+            if typeof(func) == "function" and islclosure(func) and not isexecutorclosure(func) then
+                local upvals = getupvalues(func)
+                for _, uv in pairs(upvals) do
+                    if typeof(uv) == "table" and uv.GetInventory and uv.GetUnit then
+                        GameInventoryModule = uv
+                        return
+                    end
+                end
+            end
+        end
+    end)
+end)
+
+local function GetRealPlayerUnits()
+    local unitList = {}
+    
+    -- Method 1: Extract directly from PlayerGui Animes Frame (contains exact in-game UUIDs as card names)
+    pcall(function()
+        local pgui = LocalPlayer:FindFirstChild("PlayerGui")
+        local mainUI = pgui and pgui:FindFirstChild("MainUI")
+        local frames = mainUI and mainUI:FindFirstChild("Frames")
+        local animes = frames and frames:FindFirstChild("Animes")
+        local selScroll = animes and animes:FindFirstChild("Frame") and animes.Frame:FindFirstChild("Main") and animes.Frame.Main:FindFirstChild("ScrollingFrame")
+
+        if selScroll then
+            for _, card in ipairs(selScroll:GetChildren()) do
+                if card:IsA("Frame") and card.Name ~= "Template" and card.Name ~= "Configuration" then
+                    local realUuid = card.Name
+                    local infoFrame = card:FindFirstChild("Frame") and card.Frame:FindFirstChild("Info")
+                    local nameLabel = infoFrame and infoFrame:FindFirstChild("AnimeName")
+                    local mutLabel = infoFrame and infoFrame:FindFirstChild("Mutation")
+                    local lockBtn = card:FindFirstChild("Frame") and card.Frame:FindFirstChild("LockButton")
+                    local isLocked = lockBtn and lockBtn:GetAttribute("Locked") == true
+                    
+                    local rawName = nameLabel and nameLabel.Text or "Unit"
+                    local uRarity = DisplayNameToRarityMap[rawName] or UnitNameToRarityMap[rawName] or "Common"
+                    local uMut = mutLabel and mutLabel.Text or "None"
+                    if uMut == "" or uMut == "nil" then uMut = "None" end
+                    
+                    local buffLabel = infoFrame and (infoFrame:FindFirstChild("Trait") or infoFrame:FindFirstChild("Buff"))
+                    local uBuff = buffLabel and buffLabel.Text or "None"
+
+                    local dName = rawName .. " [" .. uRarity .. "] [Mut: " .. tostring(uMut) .. "] (" .. string.sub(realUuid, 1, 8) .. ")"
+
+                    table.insert(unitList, {
+                        Id = realUuid,
+                        UUID = realUuid,
+                        Name = rawName,
+                        Rarity = uRarity,
+                        Mutation = uMut,
+                        Buff = uBuff,
+                        Locked = isLocked,
+                        DisplayName = dName
+                    })
+                end
+            end
+        end
+    end)
+
+    -- Method 2: Fallback to cached module
+    if #unitList == 0 and GameInventoryModule and GameInventoryModule.GetInventory then
+        pcall(function()
+            local inv = GameInventoryModule.GetInventory()
+            if typeof(inv) == "table" then
+                for id, u in pairs(inv) do
+                    local realUuid = u.UUID or u.Uuid or u.uuid or u.Id or u.id or u.Key or tostring(id)
+                    local uName = u.Name or "Unit"
+                    local uMut = u.Mutation or "None"
+                    local uBuff = u.Trait or u.Traits or u.Buff or "None"
+                    local uLock = u.Locked or false
+
+                    local uRarity = UnitNameToRarityMap[uName] or DisplayNameToRarityMap[uName] or "Common"
+                    local dName = uName .. " [" .. uRarity .. "] [Mut: " .. tostring(uMut) .. "] [Buff: " .. tostring(uBuff) .. "]"
+                    
+                    table.insert(unitList, {
+                        Id = realUuid,
+                        UUID = realUuid,
+                        Name = uName,
+                        Rarity = uRarity,
+                        Mutation = uMut,
+                        Buff = tostring(uBuff),
+                        Locked = uLock,
+                        DisplayName = dName
+                    })
+                end
+            end
+        end)
+    end
+
+    return unitList
+end
+
+-- ==================================================================
+-- ROBUST PLOT DETECTION ENGINE (Multi-layer Auto Search)
+-- ==================================================================
+local CachedMyPlot = nil
+
+local function DetectPlayerPlot()
+    -- Fast return if cache is valid
+    if CachedMyPlot and CachedMyPlot.Parent then
+        return CachedMyPlot
+    end
+
+    local plots = Workspace:FindFirstChild("Plots") or Workspace:FindFirstChild("Bases")
+    if not plots then return nil end
+
+    local myName = LocalPlayer.Name
+    local myNameLower = myName:lower()
+    local myDisplayNameLower = LocalPlayer.DisplayName:lower()
+
+    -- 1. Check direct owner attributes / children
+    for _, plot in ipairs(plots:GetChildren()) do
+        if plot:GetAttribute("Owner") == myName or plot:GetAttribute("Player") == myName or plot:FindFirstChild(myName) then
+            CachedMyPlot = plot
+            return plot
+        end
+        local ownerObj = plot:FindFirstChild("Owner") or plot:FindFirstChild("Player")
+        if ownerObj then
+            if ownerObj:IsA("ObjectValue") and ownerObj.Value == LocalPlayer then
+                CachedMyPlot = plot
+                return plot
+            elseif ownerObj:IsA("StringValue") and (ownerObj.Value:lower() == myNameLower or ownerObj.Value:lower() == myDisplayNameLower) then
+                CachedMyPlot = plot
+                return plot
+            end
+        end
+    end
+
+    -- 2. Fallback to nearest plot to player
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        local closestPlot, closestDist = nil, math.huge
+        for _, plot in ipairs(plots:GetChildren()) do
+            local pivot = (plot:IsA("Model") and plot:GetPivot().Position) or (plot:FindFirstChildWhichIsA("BasePart") and plot:FindFirstChildWhichIsA("BasePart").Position)
+            if pivot then
+                local dist = (hrp.Position - pivot).Magnitude
+                if dist < closestDist then
+                    closestDist = dist
+                    closestPlot = plot
+                end
+            end
+        end
+        if closestPlot and closestDist < 200 then
+            CachedMyPlot = closestPlot
+            return closestPlot
+        end
+    end
+
+    CachedMyPlot = plots:FindFirstChild("Plot6") or plots:GetChildren()[1]
+    return CachedMyPlot
+end
+
+-- GUI Root (Destroy previous instance if exists)
+for _, oldGui in ipairs(ScreenParent:GetChildren()) do
+    if oldGui.Name == "AntiHub_RollAnime_UI" then
+        pcall(function() oldGui:Destroy() end)
+    end
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AntiHub_RollAnime_UI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.Parent = ScreenParent
+
+local ActiveNavButton = nil
+local DynamicNavButtons = {}
+local DynamicElements = {}
+local Tabs = {}
+local MainFrame = nil
+local Sidebar = nil
+local Topbar = nil
+local FloatingWidget = nil
+local MainScale = nil
+local DropdownOverlay = nil
+
+local ThemeElements = {
+    MainFrames = {},
+    Cards = {},
+    Strokes = {},
+    Accents = {},
+    AccentGradients = {},
+    TextPrimaries = {},
+    TextSecondaries = {},
+    Inputs = {},
+    Sidebars = {},
+    Toggles = {},
+    Sliders = {},
+    DropdownUpdaters = {}
+}
+
+local function ApplyTheme(themeName)
+    local t = Themes[themeName] or Themes["Speed Red"]
+    Theme = t
+    Config.CurrentTheme = themeName
+
+    for _, frame in ipairs(ThemeElements.MainFrames) do
+        pcall(function() frame.BackgroundColor3 = t.MainBg end)
+    end
+    for _, frame in ipairs(ThemeElements.Sidebars) do
+        pcall(function() frame.BackgroundColor3 = t.SidebarBg end)
+    end
+    for _, card in ipairs(ThemeElements.Cards) do
+        pcall(function() card.BackgroundColor3 = t.CardBg end)
+    end
+    for _, stroke in ipairs(ThemeElements.Strokes) do
+        pcall(function() stroke.Color = t.CardStroke end)
+    end
+    for _, accent in ipairs(ThemeElements.Accents) do
+        pcall(function()
+            if accent:IsA("UIStroke") then
+                accent.Color = t.Accent
+            elseif accent:IsA("TextLabel") or accent:IsA("TextButton") then
+                accent.TextColor3 = t.Accent
+            elseif accent:IsA("Frame") or accent:IsA("ScrollingFrame") then
+                accent.BackgroundColor3 = t.Accent
+            end
+        end)
+    end
+    for _, grad in ipairs(ThemeElements.AccentGradients) do
+        pcall(function() grad.Color = t.AccentGradient end)
+    end
+    for _, lbl in ipairs(ThemeElements.TextPrimaries) do
+        pcall(function() lbl.TextColor3 = t.TextPrimary end)
+    end
+    for _, lbl in ipairs(ThemeElements.TextSecondaries) do
+        pcall(function() lbl.TextColor3 = t.TextSecondary end)
+    end
+    for _, inp in ipairs(ThemeElements.Inputs) do
+        pcall(function() inp.BackgroundColor3 = t.InputBg end)
+    end
+    for _, tog in ipairs(ThemeElements.Toggles) do
+        pcall(function()
+            if tog.GetState and tog.GetState() then
+                tog.Switch.BackgroundColor3 = t.ToggleOn
+            else
+                tog.Switch.BackgroundColor3 = t.ToggleOff
+            end
+        end)
+    end
+    for _, sli in ipairs(ThemeElements.Sliders) do
+        pcall(function() sli.FillBar.BackgroundColor3 = t.Accent end)
+    end
+    for _, fn in ipairs(ThemeElements.DropdownUpdaters) do
+        pcall(fn)
+    end
+
+    if ActiveNavButton then
+        pcall(function()
+            ActiveNavButton.BackgroundColor3 = t.CardBg
+            ActiveNavButton.TextColor3 = t.TextPrimary
+        end)
+    end
+    if DynamicNavButtons then
+        for _, btnData in ipairs(DynamicNavButtons) do
+            if btnData.Button ~= ActiveNavButton then
+                pcall(function()
+                    btnData.Button.TextColor3 = t.TextSecondary
+                end)
+            end
+        end
+    end
+
+    SaveConfig()
+end
+
+local function MakeDraggable(dragPart, mainFrame)
+    local isDragging = false
+    local dragInput, dragStart, startPos
+
+    dragPart.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isDragging = true
+            dragStart = input.Position
+            startPos = mainFrame.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    isDragging = false
+                end
+            end)
+        end
+    end)
+
+    dragPart.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and isDragging then
+            local delta = input.Position - dragStart
+            TweenService:Create(mainFrame, TweenInfo.new(0.06, Enum.EasingStyle.Linear), {
+                Position = UDim2.new(
+                    startPos.X.Scale,
+                    startPos.X.Offset + delta.X,
+                    startPos.Y.Scale,
+                    startPos.Y.Offset + delta.Y
+                )
+            }):Play()
+        end
+    end)
+end
+
+local function MakeDraggableWidget(dragBtn, targetFrame, onClick)
+    local isDragging = false
+    local dragInput, dragStart, startPos
+    local hasMoved = false
+
+    dragBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isDragging = true
+            hasMoved = false
+            dragStart = input.Position
+            startPos = targetFrame.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    isDragging = false
+                    if not hasMoved and onClick then
+                        onClick()
+                    end
+                end
+            end)
+        end
+    end)
+
+    dragBtn.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and isDragging then
+            local delta = input.Position - dragStart
+            if delta.Magnitude > 5 then
+                hasMoved = true
+            end
+            targetFrame.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
+
+-- Floating Logo Widget (Circular Emblem with Auto Discord CDN Downloader)
+local LOGO_URL = "https://cdn.discordapp.com/attachments/1268898093009604608/1540340304278720613/logo_Anti-removebg-preview.png?ex=6a899932&is=6a8847b2&hm=4febe5a7e94d94707578880198d67ae2ef5c1d55f5e7a39336ddb85434659b81&"
+local LOGO_FILE = "AntiHub_Logo.png"
+
+local CustomIconAsset = ""
+pcall(function()
+    if writefile and getcustomasset then
+        if not (isfile and isfile(LOGO_FILE)) then
+            local success, data = pcall(function() return game:HttpGet(LOGO_URL) end)
+            if success and data and #data > 100 then
+                writefile(LOGO_FILE, data)
+            end
+        end
+        if isfile and isfile(LOGO_FILE) then
+            CustomIconAsset = getcustomasset(LOGO_FILE)
+        end
+    end
+end)
+
+FloatingWidget = Instance.new("Frame")
+FloatingWidget.Name = "FloatingWidget"
+FloatingWidget.Size = UDim2.new(0, 50, 0, 50)
+FloatingWidget.Position = UDim2.new(0.04, 0, 0.25, 0)
+FloatingWidget.BackgroundColor3 = Theme.MainBg
+FloatingWidget.BackgroundTransparency = 0.05
+FloatingWidget.BorderSizePixel = 0
+FloatingWidget.Visible = false
+FloatingWidget.ZIndex = 500
+FloatingWidget.ClipsDescendants = true
+FloatingWidget.Parent = ScreenGui
+
+table.insert(ThemeElements.MainFrames, FloatingWidget)
+
+local FloatCorner = Instance.new("UICorner")
+FloatCorner.CornerRadius = UDim.new(0, 10)
+FloatCorner.Parent = FloatingWidget
+
+local FloatStroke = Instance.new("UIStroke")
+FloatStroke.Thickness = 2
+FloatStroke.Color = Theme.Accent
+FloatStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+FloatStroke.Parent = FloatingWidget
+
+table.insert(ThemeElements.Accents, FloatStroke)
+
+local FloatIcon = Instance.new("ImageLabel")
+FloatIcon.Name = "LogoImage"
+FloatIcon.Size = UDim2.new(1, -10, 1, -10)
+FloatIcon.Position = UDim2.new(0, 5, 0, 5)
+FloatIcon.BackgroundTransparency = 1
+FloatIcon.Image = CustomIconAsset
+FloatIcon.ScaleType = Enum.ScaleType.Fit
+FloatIcon.ZIndex = 501
+FloatIcon.Visible = (CustomIconAsset ~= "")
+FloatIcon.Parent = FloatingWidget
+
+local FloatIconCorner = Instance.new("UICorner")
+FloatIconCorner.CornerRadius = UDim.new(0, 8)
+FloatIconCorner.Parent = FloatIcon
+
+local FloatBtn = Instance.new("TextButton")
+FloatBtn.Name = "OpenBtn"
+FloatBtn.Size = UDim2.new(1, 0, 1, 0)
+FloatBtn.BackgroundTransparency = 1
+FloatBtn.Font = Enum.Font.GothamBold
+FloatBtn.Text = (CustomIconAsset == "") and "A" or ""
+FloatBtn.TextColor3 = Theme.Accent
+FloatBtn.TextSize = 22
+FloatBtn.ZIndex = 502
+FloatBtn.Parent = FloatingWidget
+
+table.insert(ThemeElements.Accents, FloatBtn)
+
+-- Main Frame
+MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 680, 0, 480)
+MainFrame.Position = UDim2.new(0.5, -340, 0.5, -240)
+MainFrame.BackgroundColor3 = Theme.MainBg
+MainFrame.BackgroundTransparency = Config.TransparencyLevel
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+MainFrame.Parent = ScreenGui
+
+table.insert(ThemeElements.MainFrames, MainFrame)
+
+MainScale = Instance.new("UIScale")
+MainScale.Scale = 1
+MainScale.Parent = MainFrame
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 10)
+MainCorner.Parent = MainFrame
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Thickness = 1.2
+MainStroke.Color = Theme.CardStroke
+MainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+MainStroke.Parent = MainFrame
+
+table.insert(ThemeElements.Strokes, MainStroke)
+
+-- Topbar
+Topbar = Instance.new("Frame")
+Topbar.Name = "Topbar"
+Topbar.Size = UDim2.new(1, 0, 0, 44)
+Topbar.BackgroundColor3 = Theme.SidebarBg
+Topbar.BackgroundTransparency = Config.TransparencyLevel + 0.1
+Topbar.BorderSizePixel = 0
+Topbar.Parent = MainFrame
+
+table.insert(ThemeElements.Sidebars, Topbar)
+
+local TopbarCorner = Instance.new("UICorner")
+TopbarCorner.CornerRadius = UDim.new(0, 10)
+TopbarCorner.Parent = Topbar
+
+local TopbarLine = Instance.new("Frame")
+TopbarLine.Size = UDim2.new(1, 0, 0, 1)
+TopbarLine.Position = UDim2.new(0, 0, 1, -1)
+TopbarLine.BackgroundColor3 = Theme.CardStroke
+TopbarLine.BorderSizePixel = 0
+TopbarLine.Parent = Topbar
+
+table.insert(ThemeElements.Strokes, TopbarLine)
+
+pcall(function()
+    MakeDraggable(Topbar, MainFrame)
+end)
+
+local TopbarLogo = Instance.new("ImageLabel")
+TopbarLogo.Name = "TopbarLogo"
+TopbarLogo.Size = UDim2.new(0, 24, 0, 24)
+TopbarLogo.Position = UDim2.new(0, 14, 0.5, -12)
+TopbarLogo.BackgroundTransparency = 1
+TopbarLogo.Image = CustomIconAsset
+TopbarLogo.ScaleType = Enum.ScaleType.Fit
+TopbarLogo.Visible = (CustomIconAsset ~= "")
+TopbarLogo.Parent = Topbar
+
+local TopbarLogoCorner = Instance.new("UICorner")
+TopbarLogoCorner.CornerRadius = UDim.new(0, 5)
+TopbarLogoCorner.Parent = TopbarLogo
+
+local TitleText = Instance.new("TextLabel")
+TitleText.Name = "Title"
+TitleText.Size = UDim2.new(0, 320, 0, 24)
+TitleText.Position = UDim2.new(0, (CustomIconAsset ~= "") and 44 or 16, 0.5, -12)
+TitleText.Font = Enum.Font.GothamBold
+TitleText.Text = T("Title")
+TitleText.TextColor3 = Theme.TextPrimary
+TitleText.TextSize = 13
+TitleText.TextXAlignment = Enum.TextXAlignment.Left
+TitleText.BackgroundTransparency = 1
+TitleText.Parent = Topbar
+
+table.insert(ThemeElements.TextPrimaries, TitleText)
+
+local ControlsContainer = Instance.new("Frame")
+ControlsContainer.Name = "Controls"
+ControlsContainer.Size = UDim2.new(0, 185, 0, 32)
+ControlsContainer.Position = UDim2.new(1, -195, 0, 6)
+ControlsContainer.BackgroundTransparency = 1
+ControlsContainer.Parent = Topbar
+
+local ControlsLayout = Instance.new("UIListLayout")
+ControlsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ControlsLayout.FillDirection = Enum.FillDirection.Horizontal
+ControlsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+ControlsLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+ControlsLayout.Padding = UDim.new(0, 6)
+ControlsLayout.Parent = ControlsContainer
+
+local DiscordTopbarBtn = Instance.new("TextButton")
+DiscordTopbarBtn.Name = "DiscordBtn"
+DiscordTopbarBtn.Size = UDim2.new(0, 92, 0, 26)
+DiscordTopbarBtn.LayoutOrder = 1
+DiscordTopbarBtn.BackgroundColor3 = Theme.CardBg
+DiscordTopbarBtn.Font = Enum.Font.GothamBold
+DiscordTopbarBtn.Text = "💬 Discord"
+DiscordTopbarBtn.TextColor3 = Theme.Accent
+DiscordTopbarBtn.TextSize = 11
+DiscordTopbarBtn.AutoButtonColor = false
+DiscordTopbarBtn.Parent = ControlsContainer
+
+table.insert(ThemeElements.Cards, DiscordTopbarBtn)
+table.insert(ThemeElements.Accents, DiscordTopbarBtn)
+
+local DiscordTopCorner = Instance.new("UICorner")
+DiscordTopCorner.CornerRadius = UDim.new(0, 6)
+DiscordTopCorner.Parent = DiscordTopbarBtn
+
+local DiscordTopStroke = Instance.new("UIStroke")
+DiscordTopStroke.Thickness = 1
+DiscordTopStroke.Color = Theme.CardStroke
+DiscordTopStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+DiscordTopStroke.Parent = DiscordTopbarBtn
+
+table.insert(ThemeElements.Strokes, DiscordTopStroke)
+
+DiscordTopbarBtn.MouseButton1Click:Connect(function()
+    CopyDiscord()
+end)
+
+local MinButton = Instance.new("TextButton")
+MinButton.Name = "Minimize"
+MinButton.Size = UDim2.new(0, 28, 0, 26)
+MinButton.LayoutOrder = 2
+MinButton.BackgroundColor3 = Theme.CardBg
+MinButton.Font = Enum.Font.GothamBold
+MinButton.Text = "-"
+MinButton.TextColor3 = Theme.TextSecondary
+MinButton.TextSize = 14
+MinButton.AutoButtonColor = false
+MinButton.Parent = ControlsContainer
+
+table.insert(ThemeElements.Cards, MinButton)
+table.insert(ThemeElements.TextSecondaries, MinButton)
+
+local MinCorner = Instance.new("UICorner")
+MinCorner.CornerRadius = UDim.new(0, 6)
+MinCorner.Parent = MinButton
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "Close"
+CloseButton.Size = UDim2.new(0, 28, 0, 26)
+CloseButton.LayoutOrder = 3
+CloseButton.BackgroundColor3 = Theme.CardBg
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Theme.TextSecondary
+CloseButton.TextSize = 13
+CloseButton.AutoButtonColor = false
+CloseButton.Parent = ControlsContainer
+
+table.insert(ThemeElements.Cards, CloseButton)
+table.insert(ThemeElements.TextSecondaries, CloseButton)
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 6)
+CloseCorner.Parent = CloseButton
+
+local function OpenUI()
+    CloseAllDropdownsExcept(nil)
+    if FloatingWidget then FloatingWidget.Visible = false end
+    if MainFrame then
+        MainFrame.Visible = true
+        MainFrame.BackgroundTransparency = Config.TransparencyLevel
+    end
+    if Sidebar then
+        Sidebar.BackgroundTransparency = Config.TransparencyLevel + 0.1
+    end
+    if Topbar then
+        Topbar.BackgroundTransparency = Config.TransparencyLevel + 0.1
+    end
+    if MainScale then
+        MainScale.Scale = 1
+    end
+end
+
+local function MinimizeUI()
+    CloseAllDropdownsExcept(nil)
+    if MainFrame then MainFrame.Visible = false end
+    if FloatingWidget then FloatingWidget.Visible = true end
+    if MainScale then
+        MainScale.Scale = 1
+    end
+end
+
+local function ToggleUI()
+    if MainFrame and MainFrame.Visible then
+        MinimizeUI()
+    else
+        OpenUI()
+    end
+end
+
+MinButton.MouseButton1Click:Connect(MinimizeUI)
+
+FloatBtn.MouseButton1Click:Connect(OpenUI)
+if FloatBtn.Activated then
+    FloatBtn.Activated:Connect(OpenUI)
+end
+
+pcall(function()
+    MakeDraggableWidget(FloatBtn, FloatingWidget, function()
+        OpenUI()
+    end)
+end)
+
+CloseButton.MouseButton1Click:Connect(function()
+    CloseAllDropdownsExcept(nil)
+    if _G.AntiHubThreads then
+        for _, t in ipairs(_G.AntiHubThreads) do
+            pcall(function() task.cancel(t) end)
+        end
+    end
+    ScreenGui:Destroy()
+end)
+
+-- Sidebar
+Sidebar = Instance.new("Frame")
+Sidebar.Name = "Sidebar"
+Sidebar.Size = UDim2.new(0, 150, 1, -44)
+Sidebar.Position = UDim2.new(0, 0, 0, 44)
+Sidebar.BackgroundColor3 = Theme.SidebarBg
+Sidebar.BackgroundTransparency = Config.TransparencyLevel + 0.1
+Sidebar.BorderSizePixel = 0
+Sidebar.Parent = MainFrame
+
+table.insert(ThemeElements.Sidebars, Sidebar)
+
+local SidebarCorner = Instance.new("UICorner")
+SidebarCorner.CornerRadius = UDim.new(0, 10)
+SidebarCorner.Parent = Sidebar
+
+local SidebarLine = Instance.new("Frame")
+SidebarLine.Size = UDim2.new(0, 1, 1, 0)
+SidebarLine.Position = UDim2.new(1, -1, 0, 0)
+SidebarLine.BackgroundColor3 = Theme.CardStroke
+SidebarLine.BorderSizePixel = 0
+SidebarLine.Parent = Sidebar
+
+table.insert(ThemeElements.Strokes, SidebarLine)
+
+local NavButtonsList = Instance.new("Frame")
+NavButtonsList.Name = "ButtonsList"
+NavButtonsList.Size = UDim2.new(1, -12, 1, -16)
+NavButtonsList.Position = UDim2.new(0, 6, 0, 8)
+NavButtonsList.BackgroundTransparency = 1
+NavButtonsList.Parent = Sidebar
+
+local NavListLayout = Instance.new("UIListLayout")
+NavListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+NavListLayout.Padding = UDim.new(0, 4)
+NavListLayout.Parent = NavButtonsList
+
+-- Content Container
+local ContentContainer = Instance.new("Frame")
+ContentContainer.Name = "ContentContainer"
+ContentContainer.Size = UDim2.new(1, -162, 1, -50)
+ContentContainer.Position = UDim2.new(0, 156, 0, 46)
+ContentContainer.BackgroundTransparency = 1
+ContentContainer.ClipsDescendants = true
+ContentContainer.Parent = MainFrame
+
+-- Tab Frames
+local Tabs = {}
+
+local function CreateTab(tabName)
+    local Scroll = Instance.new("ScrollingFrame")
+    Scroll.Name = tabName .. "_Tab"
+    Scroll.Size = UDim2.new(1, 0, 1, 0)
+    Scroll.BackgroundTransparency = 1
+    Scroll.BorderSizePixel = 0
+    Scroll.ScrollBarThickness = 4
+    Scroll.ScrollBarImageColor3 = Theme.Accent
+    Scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    Scroll.Visible = false
+    Scroll.ClipsDescendants = true
+    Scroll.Parent = ContentContainer
+
+    local Padding = Instance.new("UIPadding")
+    Padding.PaddingTop = UDim.new(0, 4)
+    Padding.PaddingBottom = UDim.new(0, 60)
+    Padding.PaddingLeft = UDim.new(0, 6)
+    Padding.PaddingRight = UDim.new(0, 12)
+    Padding.Parent = Scroll
+
+    local Layout = Instance.new("UIListLayout")
+    Layout.SortOrder = Enum.SortOrder.LayoutOrder
+    Layout.Padding = UDim.new(0, 8)
+    Layout.Parent = Scroll
+
+    Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        Scroll.CanvasSize = UDim2.new(0, 0, 0, Layout.AbsoluteContentSize.Y + 80)
+    end)
+
+    Scroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+        CloseAllDropdownsExcept(nil)
+    end)
+
+    Tabs[tabName] = Scroll
+    return Scroll
+end
+
+local HomeTab = CreateTab("Home")
+local MainTab = CreateTab("Main")
+local RollTab = CreateTab("Roll")
+local UpgradeTab = CreateTab("Upgrade")
+local RewardsTab = CreateTab("Rewards")
+local TeleportTab = CreateTab("Teleport")
+local SettingsTab = CreateTab("Settings")
+
+ActiveNavButton = nil
+DynamicNavButtons = {}
+
+local function CreateNavButton(keyName, iconGlyph, targetTab, isDefault)
+    local Btn = Instance.new("TextButton")
+    Btn.Name = keyName .. "_Btn"
+    Btn.Size = UDim2.new(1, 0, 0, 36)
+    Btn.BackgroundColor3 = isDefault and Theme.CardBg or Color3.fromRGB(0, 0, 0)
+    Btn.BackgroundTransparency = isDefault and 0.3 or 1
+    Btn.Font = Enum.Font.GothamMedium
+    Btn.Text = "   " .. iconGlyph .. "  " .. T(keyName)
+    Btn.TextColor3 = isDefault and Theme.TextPrimary or Theme.TextSecondary
+    Btn.TextSize = 12
+    Btn.TextXAlignment = Enum.TextXAlignment.Left
+    Btn.AutoButtonColor = false
+    Btn.Parent = NavButtonsList
+
+    local BtnCorner = Instance.new("UICorner")
+    BtnCorner.CornerRadius = UDim.new(0, 6)
+    BtnCorner.Parent = Btn
+
+    local Indicator = Instance.new("Frame")
+    Indicator.Name = "Indicator"
+    Indicator.Size = UDim2.new(0, 3, 0, 18)
+    Indicator.Position = UDim2.new(0, 2, 0.5, -9)
+    Indicator.BackgroundColor3 = Theme.Accent
+    Indicator.BorderSizePixel = 0
+    Indicator.Visible = isDefault
+    Indicator.Parent = Btn
+
+    local IndCorner = Instance.new("UICorner")
+    IndCorner.CornerRadius = UDim.new(0, 2)
+    IndCorner.Parent = Indicator
+
+    table.insert(ThemeElements.Accents, Indicator)
+
+    if isDefault then
+        ActiveNavButton = Btn
+        targetTab.Visible = true
+    end
+
+    Btn.MouseButton1Click:Connect(function()
+        CloseAllDropdownsExcept(nil)
+        for _, tab in pairs(Tabs) do
+            tab.Visible = false
+        end
+        for _, child in pairs(NavButtonsList:GetChildren()) do
+            if child:IsA("TextButton") then
+                TweenService:Create(child, TweenInfo.new(0.2), {
+                    BackgroundTransparency = 1,
+                    TextColor3 = Theme.TextSecondary
+                }):Play()
+                if child:FindFirstChild("Indicator") then
+                    child.Indicator.Visible = false
+                end
+            end
+        end
+
+        targetTab.Visible = true
+        targetTab.CanvasPosition = Vector2.new(0, 0)
+        ActiveNavButton = Btn
+        Indicator.Visible = true
+        TweenService:Create(Btn, TweenInfo.new(0.2), {
+            BackgroundTransparency = 0.3,
+            BackgroundColor3 = Theme.CardBg,
+            TextColor3 = Theme.TextPrimary
+        }):Play()
+    end)
+
+    table.insert(DynamicNavButtons, {Button = Btn, Key = keyName, Icon = iconGlyph})
+    return Btn
+end
+
+CreateNavButton("NavHome", "🏠", HomeTab, true)
+CreateNavButton("NavMain", "🗺️", MainTab, false)
+CreateNavButton("NavRoll", "🎲", RollTab, false)
+CreateNavButton("NavUpgrade", "⚡", UpgradeTab, false)
+CreateNavButton("NavRewards", "🎁", RewardsTab, false)
+CreateNavButton("NavTeleport", "📍", TeleportTab, false)
+CreateNavButton("NavSettings", "⚙️", SettingsTab, false)
+
+DynamicElements = {}
+
+local function CreatePageHeader(parent, titleKey)
+    local Label = Instance.new("TextLabel")
+    Label.Name = "PageHeader_" .. titleKey
+    Label.Size = UDim2.new(1, 0, 0, 28)
+    Label.Font = Enum.Font.GothamBold
+    Label.Text = T(titleKey)
+    Label.TextColor3 = Theme.TextPrimary
+    Label.TextSize = 20
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.BackgroundTransparency = 1
+    Label.LayoutOrder = 1
+    Label.Parent = parent
+
+    table.insert(DynamicElements, {Type = "Header", Element = Label, Key = titleKey})
+    table.insert(ThemeElements.TextPrimaries, Label)
+    return Label
+end
+
+local function CreateSectionHeader(parent, textKey, layoutOrder)
+    local Label = Instance.new("TextLabel")
+    Label.Name = "Header_" .. textKey
+    Label.Size = UDim2.new(1, 0, 0, 22)
+    Label.Font = Enum.Font.GothamBold
+    Label.Text = T(textKey)
+    Label.TextColor3 = Theme.TextPrimary
+    Label.TextSize = 14
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.BackgroundTransparency = 1
+    Label.LayoutOrder = layoutOrder
+    Label.Parent = parent
+
+    table.insert(DynamicElements, {Type = "Header", Element = Label, Key = textKey})
+    table.insert(ThemeElements.TextPrimaries, Label)
+    return Label
+end
+
+local function CreateCard(parent, sizeY, layoutOrder)
+    local Card = Instance.new("Frame")
+    Card.Size = UDim2.new(1, 0, 0, sizeY)
+    Card.BackgroundColor3 = Theme.CardBg
+    Card.BackgroundTransparency = Config.TransparencyLevel + 0.15
+    Card.BorderSizePixel = 0
+    Card.LayoutOrder = layoutOrder
+    Card.ClipsDescendants = false
+    Card.Parent = parent
+
+    table.insert(ThemeElements.Cards, Card)
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 8)
+    Corner.Parent = Card
+
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Thickness = 1
+    Stroke.Color = Theme.CardStroke
+    Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    Stroke.Parent = Card
+
+    table.insert(ThemeElements.Strokes, Stroke)
+
+    return Card
+end
+
+local function CreateToggle(parent, titleKey, descKey, defaultVal, callback, layoutOrder)
+    local Card = CreateCard(parent, 50, layoutOrder)
+
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Size = UDim2.new(1, -75, 0, 18)
+    TitleLabel.Position = UDim2.new(0, 14, 0, 8)
+    TitleLabel.Font = Enum.Font.GothamBold
+    TitleLabel.Text = T(titleKey)
+    TitleLabel.TextColor3 = Theme.TextPrimary
+    TitleLabel.TextSize = 13
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.Parent = Card
+
+    table.insert(ThemeElements.TextPrimaries, TitleLabel)
+
+    local DescLabel = Instance.new("TextLabel")
+    DescLabel.Size = UDim2.new(1, -75, 0, 14)
+    DescLabel.Position = UDim2.new(0, 14, 0, 26)
+    DescLabel.Font = Enum.Font.Gotham
+    DescLabel.Text = T(descKey)
+    DescLabel.TextColor3 = Theme.TextSecondary
+    DescLabel.TextSize = 11
+    DescLabel.TextXAlignment = Enum.TextXAlignment.Left
+    DescLabel.BackgroundTransparency = 1
+    DescLabel.Parent = Card
+
+    table.insert(ThemeElements.TextSecondaries, DescLabel)
+    table.insert(DynamicElements, {Type = "Toggle", Title = TitleLabel, Desc = DescLabel, TitleKey = titleKey, DescKey = descKey})
+
+    local Switch = Instance.new("TextButton")
+    Switch.Name = "Switch"
+    Switch.Size = UDim2.new(0, 44, 0, 22)
+    Switch.Position = UDim2.new(1, -56, 0.5, -11)
+    Switch.BackgroundColor3 = defaultVal and Theme.ToggleOn or Theme.ToggleOff
+    Switch.Text = ""
+    Switch.AutoButtonColor = false
+    Switch.Parent = Card
+
+    local SwitchCorner = Instance.new("UICorner")
+    SwitchCorner.CornerRadius = UDim.new(1, 0)
+    SwitchCorner.Parent = Switch
+
+    local Dot = Instance.new("Frame")
+    Dot.Name = "Dot"
+    Dot.Size = UDim2.new(0, 16, 0, 16)
+    Dot.Position = defaultVal and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+    Dot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Dot.BorderSizePixel = 0
+    Dot.Parent = Switch
+
+    local DotCorner = Instance.new("UICorner")
+    DotCorner.CornerRadius = UDim.new(1, 0)
+    DotCorner.Parent = Dot
+
+    local state = defaultVal
+    table.insert(ThemeElements.Toggles, {Switch = Switch, GetState = function() return state end})
+
+    Switch.MouseButton1Click:Connect(function()
+        state = not state
+        local targetPos = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+        local targetColor = state and Theme.ToggleOn or Theme.ToggleOff
+
+        TweenService:Create(Switch, TweenInfo.new(0.08), {Size = UDim2.new(0, 40, 0, 20)}):Play()
+        task.wait(0.08)
+        TweenService:Create(Switch, TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 44, 0, 22),
+            BackgroundColor3 = targetColor
+        }):Play()
+        TweenService:Create(Dot, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = targetPos}):Play()
+
+        if callback then
+            callback(state)
+        end
+        SaveConfig()
+    end)
+
+    return Card
+end
+
+local function CreateSlider(parent, titleKey, minVal, maxVal, defaultVal, suffix, callback, layoutOrder)
+    local Card = CreateCard(parent, 54, layoutOrder)
+
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Size = UDim2.new(0.65, 0, 0, 18)
+    TitleLabel.Position = UDim2.new(0, 14, 0, 8)
+    TitleLabel.Font = Enum.Font.GothamBold
+    TitleLabel.Text = T(titleKey)
+    TitleLabel.TextColor3 = Theme.TextPrimary
+    TitleLabel.TextSize = 13
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.Parent = Card
+
+    table.insert(ThemeElements.TextPrimaries, TitleLabel)
+
+    local ValLabel = Instance.new("TextLabel")
+    ValLabel.Size = UDim2.new(0.3, 0, 0, 18)
+    ValLabel.Position = UDim2.new(0.7, -14, 0, 8)
+    ValLabel.Font = Enum.Font.GothamBold
+    ValLabel.Text = tostring(defaultVal) .. " " .. (suffix or "")
+    ValLabel.TextColor3 = Theme.Accent
+    ValLabel.TextSize = 12
+    ValLabel.TextXAlignment = Enum.TextXAlignment.Right
+    ValLabel.BackgroundTransparency = 1
+    ValLabel.Parent = Card
+
+    table.insert(ThemeElements.Accents, ValLabel)
+    table.insert(DynamicElements, {Type = "Header", Element = TitleLabel, Key = titleKey})
+
+    local SliderBar = Instance.new("Frame")
+    SliderBar.Size = UDim2.new(1, -28, 0, 7)
+    SliderBar.Position = UDim2.new(0, 14, 0, 34)
+    SliderBar.BackgroundColor3 = Theme.InputBg
+    SliderBar.Parent = Card
+
+    table.insert(ThemeElements.Inputs, SliderBar)
+
+    local BarCorner = Instance.new("UICorner")
+    BarCorner.CornerRadius = UDim.new(1, 0)
+    BarCorner.Parent = SliderBar
+
+    local FillBar = Instance.new("Frame")
+    local pct = math.clamp((defaultVal - minVal) / (maxVal - minVal), 0, 1)
+    FillBar.Size = UDim2.new(pct, 0, 1, 0)
+    FillBar.BackgroundColor3 = Theme.Accent
+    FillBar.BorderSizePixel = 0
+    FillBar.Parent = SliderBar
+
+    table.insert(ThemeElements.Sliders, {FillBar = FillBar})
+
+    local FillCorner = Instance.new("UICorner")
+    FillCorner.CornerRadius = UDim.new(1, 0)
+    FillCorner.Parent = FillBar
+
+    local isDraggingSlider = false
+    local function UpdateSlider(input)
+        local posX = math.clamp(input.Position.X - SliderBar.AbsolutePosition.X, 0, SliderBar.AbsoluteSize.X)
+        local rel = posX / SliderBar.AbsoluteSize.X
+        local val = math.floor((minVal + (maxVal - minVal) * rel) * 100) / 100
+        FillBar.Size = UDim2.new(rel, 0, 1, 0)
+        ValLabel.Text = tostring(val) .. " " .. (suffix or "")
+        callback(val)
+        SaveConfig()
+    end
+
+    SliderBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isDraggingSlider = true
+            UpdateSlider(input)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isDraggingSlider = false
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if isDraggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            UpdateSlider(input)
+        end
+    end)
+
+    return Card
+end
+
+-- Floating Dropdown System
+local function CreateMultiSelectDropdown(parent, titleText, options, selectedTable, onSelectChange, layoutOrder, customDesc)
+    local Card = CreateCard(parent, 52, layoutOrder)
+
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Size = UDim2.new(0.44, 0, 0, 18)
+    TitleLabel.Position = UDim2.new(0, 14, 0, 8)
+    TitleLabel.Font = Enum.Font.GothamBold
+    TitleLabel.Text = T(titleText)
+    TitleLabel.TextColor3 = Theme.TextPrimary
+    TitleLabel.TextSize = 12
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.Parent = Card
+
+    table.insert(ThemeElements.TextPrimaries, TitleLabel)
+    table.insert(DynamicElements, {Type = "Header", Element = TitleLabel, Key = titleText})
+
+    local DescLabel = Instance.new("TextLabel")
+    DescLabel.Size = UDim2.new(0.44, 0, 0, 14)
+    DescLabel.Position = UDim2.new(0, 14, 0, 26)
+    DescLabel.Font = Enum.Font.Gotham
+    DescLabel.Text = customDesc or "Multi-Select"
+    DescLabel.TextColor3 = Theme.TextSecondary
+    DescLabel.TextSize = 10
+    DescLabel.TextXAlignment = Enum.TextXAlignment.Left
+    DescLabel.BackgroundTransparency = 1
+    DescLabel.Parent = Card
+
+    table.insert(ThemeElements.TextSecondaries, DescLabel)
+
+    local DropButton = Instance.new("TextButton")
+    DropButton.Size = UDim2.new(0.50, 0, 0, 30)
+    DropButton.Position = UDim2.new(0.47, 0, 0.5, -15)
+    DropButton.BackgroundColor3 = Theme.InputBg
+    DropButton.Font = Enum.Font.GothamMedium
+    DropButton.TextColor3 = Theme.TextPrimary
+    DropButton.TextSize = 11
+    DropButton.TextXAlignment = Enum.TextXAlignment.Left
+    DropButton.TextTruncate = Enum.TextTruncate.AtEnd
+    DropButton.AutoButtonColor = false
+    DropButton.ClipsDescendants = true
+    DropButton.Parent = Card
+
+    table.insert(ThemeElements.Inputs, DropButton)
+    table.insert(ThemeElements.TextPrimaries, DropButton)
+
+    local DropCorner = Instance.new("UICorner")
+    DropCorner.CornerRadius = UDim.new(0, 6)
+    DropCorner.Parent = DropButton
+
+    local DropStroke = Instance.new("UIStroke")
+    DropStroke.Thickness = 1
+    DropStroke.Color = Theme.CardStroke
+    DropStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    DropStroke.Parent = DropButton
+
+    table.insert(ThemeElements.Strokes, DropStroke)
+
+    local DropArrow = Instance.new("TextLabel")
+    DropArrow.Size = UDim2.new(0, 20, 1, 0)
+    DropArrow.Position = UDim2.new(1, -22, 0, 0)
+    DropArrow.Font = Enum.Font.GothamBold
+    DropArrow.Text = "v"
+    DropArrow.TextColor3 = Theme.TextSecondary
+    DropArrow.TextSize = 10
+    DropArrow.BackgroundTransparency = 1
+    DropArrow.Parent = DropButton
+
+    local DropList = Instance.new("ScrollingFrame")
+    DropList.Size = UDim2.new(0, 240, 0, 140)
+    DropList.BackgroundColor3 = Theme.CardBg
+    DropList.BorderSizePixel = 0
+    DropList.ScrollBarThickness = 4
+    DropList.ScrollBarImageColor3 = Theme.Accent
+    DropList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    DropList.CanvasSize = UDim2.new(0, 0, 0, 0)
+    DropList.Visible = false
+    DropList.ZIndex = 10000
+    DropList.Parent = ScreenGui
+
+    table.insert(ThemeElements.Cards, DropList)
+
+    local ListCorner = Instance.new("UICorner")
+    ListCorner.CornerRadius = UDim.new(0, 6)
+    ListCorner.Parent = DropList
+
+    local ListStroke = Instance.new("UIStroke")
+    ListStroke.Thickness = 1.2
+    ListStroke.Color = Theme.Accent
+    ListStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    ListStroke.Parent = DropList
+
+    table.insert(ThemeElements.Accents, ListStroke)
+
+    local ListLayout = Instance.new("UIListLayout")
+    ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    ListLayout.Padding = UDim.new(0, 2)
+    ListLayout.Parent = DropList
+
+    local ListPadding = Instance.new("UIPadding")
+    ListPadding.PaddingTop = UDim.new(0, 4)
+    ListPadding.PaddingBottom = UDim.new(0, 4)
+    ListPadding.PaddingLeft = UDim.new(0, 4)
+    ListPadding.PaddingRight = UDim.new(0, 4)
+    ListPadding.Parent = DropList
+
+    local function UpdateButtonText()
+        local selectedList = {}
+        for _, opt in ipairs(options) do
+            if selectedTable[opt] then
+                table.insert(selectedList, opt)
+            end
+        end
+        if #selectedList == 0 then
+            DropButton.Text = " None"
+        else
+            DropButton.Text = " " .. table.concat(selectedList, ", ")
+        end
+    end
+
+    local function RefreshOptions(newOptions)
+        options = newOptions
+        for _, child in ipairs(DropList:GetChildren()) do
+            if child:IsA("TextButton") then
+                child:Destroy()
+            end
+        end
+
+        for _, opt in ipairs(options) do
+            local OptBtn = Instance.new("TextButton")
+            OptBtn.Size = UDim2.new(1, 0, 0, 26)
+            OptBtn.BackgroundColor3 = selectedTable[opt] and Theme.Accent or Theme.InputBg
+            OptBtn.BackgroundTransparency = selectedTable[opt] and 0.8 or 0.5
+            OptBtn.Font = Enum.Font.GothamMedium
+            OptBtn.Text = "  " .. opt
+            OptBtn.TextColor3 = selectedTable[opt] and Theme.Accent or Theme.TextSecondary
+            OptBtn.TextSize = 11
+            OptBtn.TextXAlignment = Enum.TextXAlignment.Left
+            OptBtn.AutoButtonColor = false
+            OptBtn.Active = true
+            OptBtn.Selectable = true
+            OptBtn.ZIndex = 10000
+            OptBtn.Parent = DropList
+
+            local OptCorner = Instance.new("UICorner")
+            OptCorner.CornerRadius = UDim.new(0, 4)
+            OptCorner.Parent = OptBtn
+
+            local function OnToggle()
+                selectedTable[opt] = not selectedTable[opt]
+                OptBtn.TextColor3 = selectedTable[opt] and Theme.Accent or Theme.TextSecondary
+                OptBtn.BackgroundColor3 = selectedTable[opt] and Theme.Accent or Theme.InputBg
+                OptBtn.BackgroundTransparency = selectedTable[opt] and 0.8 or 0.5
+                UpdateButtonText()
+                if onSelectChange then
+                    onSelectChange()
+                end
+                SaveConfig()
+            end
+
+            OptBtn.MouseButton1Click:Connect(OnToggle)
+        end
+        UpdateButtonText()
+    end
+
+    table.insert(ThemeElements.DropdownUpdaters, function()
+        pcall(function()
+            DropList.ScrollBarImageColor3 = Theme.Accent
+            for _, child in ipairs(DropList:GetChildren()) do
+                if child:IsA("TextButton") then
+                    local optText = string.gsub(child.Text, "^%s+", "")
+                    local isSel = selectedTable[optText] == true
+                    child.TextColor3 = isSel and Theme.Accent or Theme.TextSecondary
+                    child.BackgroundColor3 = isSel and Theme.Accent or Theme.InputBg
+                    child.BackgroundTransparency = isSel and 0.8 or 0.5
+                end
+            end
+        end)
+    end)
+
+    RefreshOptions(options)
+
+    local isOpen = false
+    local function CloseDropdown()
+        isOpen = false
+        DropList.Visible = false
+        DropArrow.Text = "v"
+    end
+
+    table.insert(AllOpenDropdowns, CloseDropdown)
+
+    local lastToggle = 0
+    local function ToggleDropdown()
+        local now = tick()
+        if now - lastToggle < 0.2 then return end
+        lastToggle = now
+
+        if not isOpen then
+            CloseAllDropdownsExcept(CloseDropdown)
+            isOpen = true
+            
+            local absPos = DropButton.AbsolutePosition
+            local absSize = DropButton.AbsoluteSize
+            DropList.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 4)
+            DropList.Size = UDim2.new(0, math.max(absSize.X, 220), 0, 140)
+            DropList.Visible = true
+            DropArrow.Text = "^"
+        else
+            CloseDropdown()
+        end
+    end
+
+    DropButton.MouseButton1Click:Connect(ToggleDropdown)
+
+    return Card, RefreshOptions
+end
+
+local function CreateSingleDropdown(parent, titleKey, options, defaultVal, callback, layoutOrder)
+    local Card = CreateCard(parent, 52, layoutOrder)
+
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Size = UDim2.new(0.44, 0, 0, 18)
+    TitleLabel.Position = UDim2.new(0, 14, 0, 8)
+    TitleLabel.Font = Enum.Font.GothamBold
+    TitleLabel.Text = T(titleKey)
+    TitleLabel.TextColor3 = Theme.TextPrimary
+    TitleLabel.TextSize = 12
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.Parent = Card
+
+    table.insert(ThemeElements.TextPrimaries, TitleLabel)
+
+    local DescLabel = Instance.new("TextLabel")
+    DescLabel.Size = UDim2.new(0.44, 0, 0, 14)
+    DescLabel.Position = UDim2.new(0, 14, 0, 26)
+    DescLabel.Font = Enum.Font.Gotham
+    DescLabel.Text = "Select Option"
+    DescLabel.TextColor3 = Theme.TextSecondary
+    DescLabel.TextSize = 10
+    DescLabel.TextXAlignment = Enum.TextXAlignment.Left
+    DescLabel.BackgroundTransparency = 1
+    DescLabel.Parent = Card
+
+    table.insert(ThemeElements.TextSecondaries, DescLabel)
+    table.insert(DynamicElements, {Type = "Header", Element = TitleLabel, Key = titleKey})
+
+    local DropButton = Instance.new("TextButton")
+    DropButton.Size = UDim2.new(0.50, 0, 0, 30)
+    DropButton.Position = UDim2.new(0.47, 0, 0.5, -15)
+    DropButton.BackgroundColor3 = Theme.InputBg
+    DropButton.Font = Enum.Font.GothamMedium
+    DropButton.Text = " " .. (defaultVal ~= "" and defaultVal or "Select...")
+    DropButton.TextColor3 = Theme.TextPrimary
+    DropButton.TextSize = 11
+    DropButton.TextXAlignment = Enum.TextXAlignment.Left
+    DropButton.AutoButtonColor = false
+    DropButton.ClipsDescendants = true
+    DropButton.Parent = Card
+
+    table.insert(ThemeElements.Inputs, DropButton)
+    table.insert(ThemeElements.TextPrimaries, DropButton)
+
+    local DropCorner = Instance.new("UICorner")
+    DropCorner.CornerRadius = UDim.new(0, 6)
+    DropCorner.Parent = DropButton
+
+    local DropStroke = Instance.new("UIStroke")
+    DropStroke.Thickness = 1
+    DropStroke.Color = Theme.CardStroke
+    DropStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    DropStroke.Parent = DropButton
+
+    table.insert(ThemeElements.Strokes, DropStroke)
+
+    local DropArrow = Instance.new("TextLabel")
+    DropArrow.Size = UDim2.new(0, 20, 1, 0)
+    DropArrow.Position = UDim2.new(1, -22, 0, 0)
+    DropArrow.Font = Enum.Font.GothamBold
+    DropArrow.Text = "v"
+    DropArrow.TextColor3 = Theme.TextSecondary
+    DropArrow.TextSize = 10
+    DropArrow.BackgroundTransparency = 1
+    DropArrow.Parent = DropButton
+
+    local DropList = Instance.new("ScrollingFrame")
+    DropList.Size = UDim2.new(0, 240, 0, 130)
+    DropList.BackgroundColor3 = Theme.CardBg
+    DropList.BorderSizePixel = 0
+    DropList.ScrollBarThickness = 4
+    DropList.ScrollBarImageColor3 = Theme.Accent
+    DropList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    DropList.CanvasSize = UDim2.new(0, 0, 0, 0)
+    DropList.Visible = false
+    DropList.ZIndex = 10000
+    DropList.Parent = ScreenGui
+
+    table.insert(ThemeElements.Cards, DropList)
+
+    local ListCorner = Instance.new("UICorner")
+    ListCorner.CornerRadius = UDim.new(0, 6)
+    ListCorner.Parent = DropList
+
+    local ListStroke = Instance.new("UIStroke")
+    ListStroke.Thickness = 1.2
+    ListStroke.Color = Theme.Accent
+    ListStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    ListStroke.Parent = DropList
+
+    table.insert(ThemeElements.Accents, ListStroke)
+
+    local ListLayout = Instance.new("UIListLayout")
+    ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    ListLayout.Padding = UDim.new(0, 2)
+    ListLayout.Parent = DropList
+
+    local ListPadding = Instance.new("UIPadding")
+    ListPadding.PaddingTop = UDim.new(0, 4)
+    ListPadding.PaddingBottom = UDim.new(0, 4)
+    ListPadding.PaddingLeft = UDim.new(0, 4)
+    ListPadding.PaddingRight = UDim.new(0, 4)
+    ListPadding.Parent = DropList
+
+    local selectedVal = defaultVal
+
+    local isOpen = false
+    local function CloseDropdown()
+        isOpen = false
+        DropList.Visible = false
+        DropArrow.Text = "v"
+    end
+
+    table.insert(AllOpenDropdowns, CloseDropdown)
+
+    local function RefreshOptions(newOptions)
+        for _, child in ipairs(DropList:GetChildren()) do
+            if child:IsA("TextButton") then
+                child:Destroy()
+            end
+        end
+
+        for _, opt in ipairs(newOptions) do
+            local OptBtn = Instance.new("TextButton")
+            OptBtn.Size = UDim2.new(1, 0, 0, 26)
+            OptBtn.BackgroundColor3 = (opt == selectedVal) and Theme.Accent or Theme.InputBg
+            OptBtn.BackgroundTransparency = (opt == selectedVal) and 0.8 or 0.5
+            OptBtn.Font = Enum.Font.GothamMedium
+            OptBtn.Text = "  " .. opt
+            OptBtn.TextColor3 = (opt == selectedVal) and Theme.Accent or Theme.TextSecondary
+            OptBtn.TextSize = 11
+            OptBtn.TextXAlignment = Enum.TextXAlignment.Left
+            OptBtn.AutoButtonColor = false
+            OptBtn.Active = true
+            OptBtn.Selectable = true
+            OptBtn.ZIndex = 10000
+            OptBtn.Parent = DropList
+
+            local OptCorner = Instance.new("UICorner")
+            OptCorner.CornerRadius = UDim.new(0, 4)
+            OptCorner.Parent = OptBtn
+
+            local function OnSelect()
+                selectedVal = opt
+                DropButton.Text = " " .. opt
+                CloseDropdown()
+                for _, otherBtn in ipairs(DropList:GetChildren()) do
+                    if otherBtn:IsA("TextButton") then
+                        local isCur = (string.gsub(otherBtn.Text, "^%s+", "") == opt)
+                        otherBtn.TextColor3 = isCur and Theme.Accent or Theme.TextSecondary
+                        otherBtn.BackgroundColor3 = isCur and Theme.Accent or Theme.InputBg
+                        otherBtn.BackgroundTransparency = isCur and 0.8 or 0.5
+                    end
+                end
+                if callback then
+                    callback(opt)
+                end
+            end
+
+            OptBtn.MouseButton1Click:Connect(OnSelect)
+        end
+    end
+
+    table.insert(ThemeElements.DropdownUpdaters, function()
+        pcall(function()
+            DropList.ScrollBarImageColor3 = Theme.Accent
+            for _, child in ipairs(DropList:GetChildren()) do
+                if child:IsA("TextButton") then
+                    local optText = string.gsub(child.Text, "^%s+", "")
+                    local isCur = (optText == selectedVal)
+                    child.TextColor3 = isCur and Theme.Accent or Theme.TextSecondary
+                    child.BackgroundColor3 = isCur and Theme.Accent or Theme.InputBg
+                    child.BackgroundTransparency = isCur and 0.8 or 0.5
+                end
+            end
+        end)
+    end)
+
+    RefreshOptions(options)
+
+    local lastToggle = 0
+    local function ToggleDropdown()
+        local now = tick()
+        if now - lastToggle < 0.2 then return end
+        lastToggle = now
+
+        if not isOpen then
+            CloseAllDropdownsExcept(CloseDropdown)
+            isOpen = true
+            
+            local absPos = DropButton.AbsolutePosition
+            local absSize = DropButton.AbsoluteSize
+            DropList.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 4)
+            DropList.Size = UDim2.new(0, math.max(absSize.X, 220), 0, 130)
+            DropList.Visible = true
+            DropArrow.Text = "^"
+        else
+            CloseDropdown()
+        end
+    end
+
+    DropButton.MouseButton1Click:Connect(ToggleDropdown)
+
+    return Card, RefreshOptions
+end
+
+local function CreateActionButton(parent, textKey, callback, layoutOrder)
+    local Card = CreateCard(parent, 40, layoutOrder)
+
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(1, 0, 1, 0)
+    Btn.BackgroundColor3 = Theme.Accent
+    Btn.Text = ""
+    Btn.AutoButtonColor = false
+    Btn.ClipsDescendants = true
+    Btn.Parent = Card
+
+    local BtnCorner = Instance.new("UICorner")
+    BtnCorner.CornerRadius = UDim.new(0, 8)
+    BtnCorner.Parent = Btn
+
+    local Gradient = Instance.new("UIGradient")
+    Gradient.Color = Theme.AccentGradient
+    Gradient.Parent = Btn
+
+    table.insert(ThemeElements.AccentGradients, Gradient)
+
+    local BtnText = Instance.new("TextLabel")
+    BtnText.Size = UDim2.new(1, 0, 1, 0)
+    BtnText.BackgroundTransparency = 1
+    BtnText.Font = Enum.Font.GothamBold
+    BtnText.Text = T(textKey)
+    BtnText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    BtnText.TextSize = 12
+    BtnText.ZIndex = 5
+    BtnText.Parent = Btn
+
+    Btn.MouseButton1Click:Connect(function()
+        TweenService:Create(Btn, TweenInfo.new(0.08), {Size = UDim2.new(0.96, 0, 0.9, 0), Position = UDim2.new(0.02, 0, 0.05, 0)}):Play()
+        task.wait(0.08)
+        TweenService:Create(Btn, TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0)}):Play()
+        if callback then
+            callback()
+        end
+    end)
+
+    return Card
+end
+
+-- ==================================================================
+-- [TAB 0] HOME TAB
+-- ==================================================================
+CreatePageHeader(HomeTab, "NavHome")
+
+CreateSectionHeader(HomeTab, "SecPlayerStatus", 2)
+
+local HomeStatusCard = CreateCard(HomeTab, 64, 3)
+local PlayerNameLabel = Instance.new("TextLabel")
+PlayerNameLabel.Size = UDim2.new(1, -28, 0, 20)
+PlayerNameLabel.Position = UDim2.new(0, 14, 0, 10)
+PlayerNameLabel.Font = Enum.Font.GothamBold
+PlayerNameLabel.Text = "Player: " .. LocalPlayer.DisplayName .. " (@" .. LocalPlayer.Name .. ")"
+PlayerNameLabel.TextColor3 = Theme.TextPrimary
+PlayerNameLabel.TextSize = 13
+PlayerNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+PlayerNameLabel.BackgroundTransparency = 1
+PlayerNameLabel.Parent = HomeStatusCard
+
+table.insert(ThemeElements.TextPrimaries, PlayerNameLabel)
+
+local HomePlotLabel = Instance.new("TextLabel")
+HomePlotLabel.Size = UDim2.new(1, -28, 0, 18)
+HomePlotLabel.Position = UDim2.new(0, 14, 0, 34)
+HomePlotLabel.Font = Enum.Font.GothamMedium
+HomePlotLabel.Text = "Plot: Detecting base..."
+HomePlotLabel.TextColor3 = Theme.Success
+HomePlotLabel.TextSize = 12
+HomePlotLabel.TextXAlignment = Enum.TextXAlignment.Left
+HomePlotLabel.BackgroundTransparency = 1
+HomePlotLabel.Parent = HomeStatusCard
+
+CreateSectionHeader(HomeTab, "SecDiscord", 4)
+
+local DiscordInfoCard = CreateCard(HomeTab, 70, 5)
+
+local DiscordTitleLabel = Instance.new("TextLabel")
+DiscordTitleLabel.Size = UDim2.new(1, -28, 0, 20)
+DiscordTitleLabel.Position = UDim2.new(0, 14, 0, 8)
+DiscordTitleLabel.Font = Enum.Font.GothamBold
+DiscordTitleLabel.Text = "Discord: https://discord.gg/9Nt8SDRbYm"
+DiscordTitleLabel.TextColor3 = Theme.Accent
+DiscordTitleLabel.TextSize = 12
+DiscordTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+DiscordTitleLabel.BackgroundTransparency = 1
+DiscordTitleLabel.Parent = DiscordInfoCard
+
+table.insert(ThemeElements.Accents, DiscordTitleLabel)
+
+local DiscordDescLabel = Instance.new("TextLabel")
+DiscordDescLabel.Size = UDim2.new(1, -28, 0, 16)
+DiscordDescLabel.Position = UDim2.new(0, 14, 0, 28)
+DiscordDescLabel.Font = Enum.Font.Gotham
+DiscordDescLabel.Text = T("DiscordDesc")
+DiscordDescLabel.TextColor3 = Theme.TextSecondary
+DiscordDescLabel.TextSize = 11
+DiscordDescLabel.TextXAlignment = Enum.TextXAlignment.Left
+DiscordDescLabel.BackgroundTransparency = 1
+DiscordDescLabel.Parent = DiscordInfoCard
+
+table.insert(ThemeElements.TextSecondaries, DiscordDescLabel)
+
+CreateActionButton(HomeTab, "CopyDiscordBtn", function()
+    CopyDiscord()
+end, 6)
+
+-- ==================================================================
+-- [TAB 1] MAIN TAB
+-- ==================================================================
+CreatePageHeader(MainTab, "NavMain")
+
+CreateSectionHeader(MainTab, "SecFight", 2)
+
+CreateToggle(MainTab, "AutoStartWave", "AutoStartWaveDesc", Config.AutoStartWave, function(val)
+    Config.AutoStartWave = val
+end, 3)
+
+CreateSectionHeader(MainTab, "SecPlot", 4)
+
+local PlotInfoCard = CreateCard(MainTab, 44, 5)
+local PlotInfoLabel = Instance.new("TextLabel")
+PlotInfoLabel.Size = UDim2.new(1, -28, 1, 0)
+PlotInfoLabel.Position = UDim2.new(0, 14, 0, 0)
+PlotInfoLabel.Font = Enum.Font.GothamMedium
+PlotInfoLabel.Text = T("CurrentPlotInfo") .. " Checking..."
+PlotInfoLabel.TextColor3 = Theme.Success
+PlotInfoLabel.TextSize = 12
+PlotInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
+PlotInfoLabel.BackgroundTransparency = 1
+PlotInfoLabel.Parent = PlotInfoCard
+
+-- ==================================================================
+-- [TAB 2] ROLL & UNITS TAB
+-- ==================================================================
+CreatePageHeader(RollTab, "NavRoll")
+
+CreateSectionHeader(RollTab, "SecRoll", 2)
+
+CreateToggle(RollTab, "AutoRoll", "AutoRollDesc", Config.AutoRoll, function(val)
+    Config.AutoRoll = val
+end, 3)
+
+CreateSlider(RollTab, "RollDelay", 1.0, 10.0, Config.RollDelay, "s", function(val)
+    Config.RollDelay = val
+end, 4)
+
+CreateSectionHeader(RollTab, "SecBuy", 5)
+
+CreateToggle(RollTab, "AutoBuy", "AutoBuyDesc", Config.AutoBuy, function(val)
+    Config.AutoBuy = val
+end, 6)
+
+local TierCardsMap = {}
+local TierOrder = {"Legendary", "Secret", "God", "Limited", "Mythic", "Epic", "Rare", "Common"}
+
+local function UpdateTierVisibility()
+    for _, tier in ipairs(TierOrder) do
+        local isEnabled = (Config.SelectedBuyRarities[tier] == true)
+        if TierCardsMap[tier] then
+            TierCardsMap[tier].CharCard.Visible = isEnabled
+            TierCardsMap[tier].MutCard.Visible = isEnabled
+        end
+    end
+end
+
+CreateMultiSelectDropdown(RollTab, "Rarities to Buy", OrderedRarities, Config.SelectedBuyRarities, function()
+    UpdateTierVisibility()
+end, 7, "Overall Rarities to Buy")
+
+local currentLayoutIndex = 8
+for _, tier in ipairs(TierOrder) do
+    if not Config.RarityRuleCharacters[tier] then Config.RarityRuleCharacters[tier] = {} end
+    if not Config.RarityRuleMutations[tier] then Config.RarityRuleMutations[tier] = {["All (ทุก Mutation)"] = true} end
+
+    local tierUnits = {}
+    for rKey, list in pairs(UnitsByRarity) do
+        if string.find(rKey, tier) then
+            tierUnits = list
+            break
+        end
+    end
+
+    local cCard = CreateMultiSelectDropdown(RollTab, tier .. " Units", tierUnits, Config.RarityRuleCharacters[tier], nil, currentLayoutIndex, "Filter " .. tier .. " Units")
+    currentLayoutIndex = currentLayoutIndex + 1
+
+    local mCard = CreateMultiSelectDropdown(RollTab, tier .. " Mutations", AllMutationsList, Config.RarityRuleMutations[tier], nil, currentLayoutIndex, "Filter " .. tier .. " Mutations")
+    currentLayoutIndex = currentLayoutIndex + 1
+
+    TierCardsMap[tier] = {CharCard = cCard, MutCard = mCard}
+end
+
+UpdateTierVisibility()
+
+CreateSectionHeader(RollTab, "SecSell", currentLayoutIndex)
+currentLayoutIndex = currentLayoutIndex + 1
+
+CreateToggle(RollTab, "AutoSell", "AutoSellDesc", Config.AutoSell, function(val)
+    Config.AutoSell = val
+end, currentLayoutIndex)
+currentLayoutIndex = currentLayoutIndex + 1
+
+CreateMultiSelectDropdown(RollTab, "SellRaritiesList", OrderedRarities, Config.SelectedSellRarities, nil, currentLayoutIndex)
+
+-- ==================================================================
+-- [TAB 3] UPGRADES TAB
+-- ==================================================================
+CreatePageHeader(UpgradeTab, "NavUpgrade")
+
+CreateSectionHeader(UpgradeTab, "SecUpgrade", 2)
+
+CreateToggle(UpgradeTab, "AutoUpgrade", "AutoUpgradeDesc", Config.AutoUpgrade, function(val)
+    Config.AutoUpgrade = val
+end, 3)
+
+CreateMultiSelectDropdown(UpgradeTab, "UpgradeStatsList", AllUpgradeTypes, Config.SelectedUpgrades, nil, 4)
+
+-- ==================================================================
+-- [TAB 4] REWARDS & QUESTS TAB
+-- ==================================================================
+CreatePageHeader(RewardsTab, "NavRewards")
+
+CreateSectionHeader(RewardsTab, "SecRewards", 2)
+
+CreateToggle(RewardsTab, "AutoSpinWheel", "AutoSpinWheelDesc", Config.AutoSpinWheel, function(val)
+    Config.AutoSpinWheel = val
+end, 3)
+
+CreateToggle(RewardsTab, "AutoClaimBPRewards", "AutoClaimBPRewardsDesc", Config.AutoClaimBPRewards, function(val)
+    Config.AutoClaimBPRewards = val
+end, 4)
+
+CreateToggle(RewardsTab, "AutoClaimBPQuests", "AutoClaimBPQuestsDesc", Config.AutoClaimBPQuests, function(val)
+    Config.AutoClaimBPQuests = val
+end, 5)
+
+CreateActionButton(RewardsTab, "RedeemAllCodes", function()
+    local codes = {"RELEASE", "ANIME", "FIGHT", "ROLL", "100K", "UPDATE1", "FREEGIFT", "500LIKES"}
+    local redeemRemote = Remotes and Remotes:FindFirstChild("Codes") and Remotes.Codes:FindFirstChild("Redeem")
+    
+    if redeemRemote then
+        for _, code in ipairs(codes) do
+            pcall(function()
+                redeemRemote:InvokeServer(code)
+            end)
+            task.wait(0.2)
+        end
+    end
+end, 6)
+
+-- ==================================================================
+-- [TAB 5] TELEPORT TAB
+-- ==================================================================
+CreatePageHeader(TeleportTab, "NavTeleport")
+
+CreateSectionHeader(TeleportTab, "SecTeleport", 2)
+
+local function TeleportTo(cframe)
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        hrp.CFrame = cframe
+    end
+end
+
+CreateActionButton(TeleportTab, "My Plot", function()
+    local myPlot = DetectPlayerPlot()
+    if myPlot and myPlot:FindFirstChild("Roll") and myPlot.Roll:FindFirstChild("RollButton") then
+        local btn = myPlot.Roll.RollButton:FindFirstChild("Button") or myPlot.Roll.RollButton
+        if btn then
+            local pos = (btn:IsA("BasePart") and btn.CFrame) or btn:GetPivot()
+            TeleportTo(pos * CFrame.new(0, 3, 4))
+            return
+        end
+    end
+    TeleportTo(CFrame.new(-45.1, 17.8, -23.8))
+end, 3)
+
+CreateActionButton(TeleportTab, "Infinity Tower", function()
+    TeleportTo(CFrame.new(140.3, 24.7, -125.0))
+end, 4)
+
+CreateActionButton(TeleportTab, "Evolution Machine", function()
+    TeleportTo(CFrame.new(106.7, 20.3, -61.2))
+end, 5)
+
+CreateActionButton(TeleportTab, "Trait Machine", function()
+    TeleportTo(CFrame.new(85.0, 21.8, -53.0))
+end, 6)
+
+CreateActionButton(TeleportTab, "Clone Machine", function()
+    TeleportTo(CFrame.new(96.1, 23.7, -201.0))
+end, 7)
+
+CreateActionButton(TeleportTab, "Spin Wheel", function()
+    TeleportTo(CFrame.new(7.2, 15.6, -129.4))
+end, 8)
+
+CreateActionButton(TeleportTab, "Mythic Statue", function()
+    TeleportTo(CFrame.new(-56.1, 18.1, -129.6))
+end, 9)
+
+CreateActionButton(TeleportTab, "Secret Statue", function()
+    TeleportTo(CFrame.new(-35.9, 18.1, -129.7))
+end, 10)
+
+CreateActionButton(TeleportTab, "God Statue", function()
+    TeleportTo(CFrame.new(-16.0, 18.4, -129.7))
+end, 11)
+
+-- ==================================================================
+-- [TAB 6] SETTINGS (MISCELLANEOUS) TAB
+-- ==================================================================
+CreatePageHeader(SettingsTab, "NavSettings")
+
+CreateSectionHeader(SettingsTab, "SecSafety", 2)
+
+CreateToggle(SettingsTab, "AntiAFK", "AntiAFKDesc", Config.AntiAFK, function(val)
+    Config.AntiAFK = val
+end, 3)
+
+CreateToggle(SettingsTab, "InfiniteJump", "InfiniteJumpDesc", Config.InfiniteJump, function(val)
+    Config.InfiniteJump = val
+end, 4)
+
+CreateToggle(SettingsTab, "Noclip", "NoclipDesc", Config.Noclip, function(val)
+    Config.Noclip = val
+end, 5)
+
+CreateSectionHeader(SettingsTab, "SecAppearance", 6)
+
+CreateSingleDropdown(SettingsTab, "SelectTheme", ThemeNames, Config.CurrentTheme, function(val)
+    ApplyTheme(val)
+end, 7)
+
+CreateSlider(SettingsTab, "WindowTransparency", 0.0, 0.6, Config.TransparencyLevel, "", function(val)
+    Config.TransparencyLevel = val
+    MainFrame.BackgroundTransparency = val
+    Sidebar.BackgroundTransparency = val + 0.1
+    Topbar.BackgroundTransparency = val + 0.1
+end, 8)
+
+local KeyCard = CreateCard(SettingsTab, 50, 9)
+local KeyTitle = Instance.new("TextLabel")
+KeyTitle.Size = UDim2.new(0.6, 0, 1, 0)
+KeyTitle.Position = UDim2.new(0, 14, 0, 0)
+KeyTitle.Font = Enum.Font.GothamBold
+KeyTitle.Text = T("MenuKeybind")
+KeyTitle.TextColor3 = Theme.TextPrimary
+KeyTitle.TextSize = 12
+KeyTitle.TextXAlignment = Enum.TextXAlignment.Left
+KeyTitle.BackgroundTransparency = 1
+KeyTitle.Parent = KeyCard
+
+table.insert(ThemeElements.TextPrimaries, KeyTitle)
+table.insert(DynamicElements, {Type = "Header", Element = KeyTitle, Key = "MenuKeybind"})
+
+local KeyBtn = Instance.new("TextButton")
+KeyBtn.Size = UDim2.new(0, 90, 0, 28)
+KeyBtn.Position = UDim2.new(1, -102, 0.5, -14)
+KeyBtn.BackgroundColor3 = Theme.InputBg
+KeyBtn.Font = Enum.Font.GothamBold
+KeyBtn.Text = "[" .. tostring(Config.MenuKeybind) .. "]"
+KeyBtn.TextColor3 = Theme.Accent
+KeyBtn.TextSize = 11
+KeyBtn.AutoButtonColor = false
+KeyBtn.Parent = KeyCard
+
+table.insert(ThemeElements.Inputs, KeyBtn)
+table.insert(ThemeElements.Accents, KeyBtn)
+
+local KeyBtnCorner = Instance.new("UICorner")
+KeyBtnCorner.CornerRadius = UDim.new(0, 6)
+KeyBtnCorner.Parent = KeyBtn
+
+local listeningKey = false
+KeyBtn.MouseButton1Click:Connect(function()
+    listeningKey = true
+    KeyBtn.Text = "[...]"
+end)
+
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if listeningKey and input.UserInputType == Enum.UserInputType.Keyboard then
+        listeningKey = false
+        Config.MenuKeybind = input.KeyCode.Name
+        KeyBtn.Text = "[" .. input.KeyCode.Name .. "]"
+        SaveConfig()
+    elseif not gpe and input.KeyCode.Name == Config.MenuKeybind then
+        ToggleUI()
+    end
+end)
+
+CreateActionButton(SettingsTab, "CopyDiscordBtn", function()
+    CopyDiscord()
+end, 10)
+
+CreateActionButton(SettingsTab, "SaveConfig", function()
+    SaveConfig()
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "AntiHub",
+        Text = "Settings saved successfully!",
+        Duration = 3
+    })
+end, 11)
+
+local LangCard = CreateCard(SettingsTab, 50, 12)
+local LangTitle = Instance.new("TextLabel")
+LangTitle.Size = UDim2.new(0.6, 0, 1, 0)
+LangTitle.Position = UDim2.new(0, 14, 0, 0)
+LangTitle.Font = Enum.Font.GothamBold
+LangTitle.Text = T("Language")
+LangTitle.TextColor3 = Theme.TextPrimary
+LangTitle.TextSize = 12
+LangTitle.TextXAlignment = Enum.TextXAlignment.Left
+LangTitle.BackgroundTransparency = 1
+LangTitle.Parent = LangCard
+
+table.insert(ThemeElements.TextPrimaries, LangTitle)
+table.insert(DynamicElements, {Type = "Header", Element = LangTitle, Key = "Language"})
+
+local LangBtn = Instance.new("TextButton")
+LangBtn.Size = UDim2.new(0, 80, 0, 30)
+LangBtn.Position = UDim2.new(1, -92, 0.5, -15)
+LangBtn.BackgroundColor3 = Theme.InputBg
+LangBtn.Font = Enum.Font.GothamBold
+LangBtn.Text = (Lang.Current == "TH") and "TH" or "EN"
+LangBtn.TextColor3 = Theme.Accent
+LangBtn.TextSize = 12
+LangBtn.AutoButtonColor = false
+LangBtn.Parent = LangCard
+
+table.insert(ThemeElements.Inputs, LangBtn)
+table.insert(ThemeElements.Accents, LangBtn)
+
+local LangBtnCorner = Instance.new("UICorner")
+LangBtnCorner.CornerRadius = UDim.new(0, 6)
+LangBtnCorner.Parent = LangBtn
+
+local function RefreshAllLanguages()
+    TitleText.Text = T("Title")
+    for _, btnData in ipairs(DynamicNavButtons) do
+        btnData.Button.Text = "   " .. btnData.Icon .. "  " .. T(btnData.Key)
+    end
+    for _, elem in ipairs(DynamicElements) do
+        if elem.Type == "Header" then
+            elem.Element.Text = T(elem.Key)
+        elseif elem.Type == "Toggle" then
+            elem.Title.Text = T(elem.TitleKey)
+            elem.Desc.Text = T(elem.DescKey)
+        end
+    end
+end
+
+LangBtn.MouseButton1Click:Connect(function()
+    Lang.Current = (Lang.Current == "TH") and "EN" or "TH"
+    LangBtn.Text = (Lang.Current == "TH") and "TH" or "EN"
+    RefreshAllLanguages()
+    SaveConfig()
+end)
+
+-- ==================================================================
+-- AUTOMATION THREADS (Clean Management)
+-- ==================================================================
+
+-- Anti-AFK
+LocalPlayer.Idled:Connect(function()
+    if Config.AntiAFK then
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end
+end)
+
+-- Infinite Jump
+UserInputService.JumpRequest:Connect(function()
+    if Config.InfiniteJump then
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+-- Noclip Loop
+RunService.Stepped:Connect(function()
+    if Config.Noclip then
+        local char = LocalPlayer.Character
+        if char then
+            for _, part in ipairs(char:GetChildren()) do
+                if part:IsA("BasePart") and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end
+end)
+
+-- Plot Monitor Loop
+local t_plot = task.spawn(function()
+    while true do
+        pcall(function()
+            local p = DetectPlayerPlot()
+            if p then
+                PlotInfoLabel.Text = T("CurrentPlotInfo") .. " " .. p.Name
+                HomePlotLabel.Text = "Plot: " .. p.Name
+            else
+                PlotInfoLabel.Text = T("CurrentPlotInfo") .. " Checking..."
+                HomePlotLabel.Text = "Plot: Searching..."
+            end
+        end)
+        task.wait(3)
+    end
+end)
+table.insert(_G.AntiHubThreads, t_plot)
+
+-- 1. SMART AUTO START WAVE
+local t_wave = task.spawn(function()
+    while true do
+        if Config.AutoStartWave then
+            pcall(function()
+                local pGui = LocalPlayer:FindFirstChild("PlayerGui")
+                local mainUI = pGui and pGui:FindFirstChild("MainUI")
+                local uiTop = mainUI and mainUI:FindFirstChild("UITop")
+                local top = uiTop and uiTop:FindFirstChild("Top")
+                local main = top and top:FindFirstChild("Main")
+                local startFolder = main and main:FindFirstChild("Start")
+                local startBtn = startFolder and startFolder:FindFirstChild("Start")
+
+                if startBtn then
+                    local isStopButton = false
+                    for _, d in ipairs(startFolder:GetDescendants()) do
+                        if d:IsA("TextLabel") or d:IsA("TextButton") then
+                            local txt = string.lower(d.Text)
+                            if string.find(txt, "stop") or string.find(txt, "fighting") or string.find(txt, "wave") then
+                                isStopButton = true
+                                break
+                            end
+                        end
+                    end
+                    
+                    if startBtn:GetAttribute("State") == "Stop" or startFolder:GetAttribute("Fighting") == true then
+                        isStopButton = true
+                    end
+
+                    if not isStopButton then
+                        SimulateClick(startBtn)
+                        if Remotes and Remotes:FindFirstChild("Fight") and Remotes.Fight:FindFirstChild("Startxx") then
+                            Remotes.Fight.Startxx:FireServer()
+                        end
+                    end
+                end
+            end)
+        end
+        task.wait(1.5)
+    end
+end)
+table.insert(_G.AntiHubThreads, t_wave)
+
+-- 2. SMART AUTO ROLL (Hop to Roll Button & Return to Original Spot)
+local t_roll = task.spawn(function()
+    while true do
+        if Config.AutoRoll then
+            pcall(function()
+                local myPlot = DetectPlayerPlot()
+                if not myPlot then return end
+
+                local rollFolder = myPlot:FindFirstChild("Roll")
+                local rollBtnModel = rollFolder and rollFolder:FindFirstChild("RollButton")
+                local btnPart = rollBtnModel and (rollBtnModel:FindFirstChild("Button") or rollBtnModel:FindFirstChildWhichIsA("BasePart"))
+                
+                local char = LocalPlayer.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+
+                if root and btnPart then
+                    local originalCF = root.CFrame
+                    local btnPos = (btnPart:IsA("BasePart") and btnPart.Position) or btnPart:GetPivot().Position
+                    local rollSpotCF = CFrame.new(btnPos + Vector3.new(0, 3, 3), btnPos)
+
+                    root.CFrame = rollSpotCF
+                    task.wait(0.2)
+
+                    local pp = btnPart:FindFirstChildOfClass("ProximityPrompt") or rollBtnModel:FindFirstChildWhichIsA("ProximityPrompt", true)
+                    if pp and fireproximityprompt then
+                        fireproximityprompt(pp)
+                    end
+                    local cd = btnPart:FindFirstChildOfClass("ClickDetector")
+                    if cd and fireclickdetector then
+                        fireclickdetector(cd)
+                    end
+
+                    if Remotes and Remotes:FindFirstChild("Characters") and Remotes.Characters:FindFirstChild("Roll") then
+                        Remotes.Characters.Roll:FireServer()
+                    end
+
+                    task.wait(0.25)
+                    if root then
+                        root.CFrame = originalCF
+                    end
+                end
+            end)
+        end
+        task.wait(Config.RollDelay)
+    end
+end)
+table.insert(_G.AntiHubThreads, t_roll)
+
+-- 3. RARITY RULES AUTO BUY (With Gold Price Checking)
+local t_buy = task.spawn(function()
+    while true do
+        if Config.AutoBuy then
+            pcall(function()
+                local myPlot = DetectPlayerPlot()
+                if not myPlot then return end
+
+                local currentGold = GetPlayerGold()
+                local plotChars = myPlot:FindFirstChild("Characters")
+                
+                if plotChars then
+                    for _, unit in ipairs(plotChars:GetChildren()) do
+                        local unitName = unit.Name
+                        local unitMutation = unit:GetAttribute("Mutation") or unit:GetAttribute("Mutations") or "No Mutation"
+                        if unitMutation == "" or unitMutation == "None" then
+                            unitMutation = "No Mutation"
+                        end
+
+                        local unitRarity = UnitNameToRarityMap[unitName] or DisplayNameToRarityMap[unitName] or UnitNameToRarityMap[unitName:lower()]
+
+                        if unitRarity and Config.SelectedBuyRarities[unitRarity] then
+                            local charTable = Config.RarityRuleCharacters[unitRarity] or {}
+                            local charMatch = (next(charTable) == nil) or (charTable[unitName] == true)
+
+                            local mutTable = Config.RarityRuleMutations[unitRarity] or {}
+                            local mutMatch = false
+                            if next(mutTable) == nil or mutTable["All (ทุก Mutation)"] then
+                                mutMatch = true
+                            elseif mutTable["No Mutation (ไม่ติด Mutation)"] and (unitMutation == "No Mutation") then
+                                mutMatch = true
+                            elseif mutTable[unitMutation] then
+                                mutMatch = true
+                            end
+
+                            local unitPrice = UnitPriceMap[unitName] or 0
+                            local canAfford = (unitPrice == 0) or (currentGold >= unitPrice)
+
+                            if charMatch and mutMatch and canAfford then
+                                local hrp = unit:FindFirstChild("HumanoidRootPart") or unit:FindFirstChildWhichIsA("BasePart")
+                                local buyPP = hrp and hrp:FindFirstChildOfClass("ProximityPrompt")
+
+                                if buyPP and buyPP.Enabled and fireproximityprompt then
+                                    fireproximityprompt(buyPP)
+                                end
+
+                                if Remotes and Remotes:FindFirstChild("Characters") and Remotes.Characters:FindFirstChild("Buy") then
+                                    Remotes.Characters.Buy:FireServer(unit)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+        task.wait(0.6)
+    end
+end)
+table.insert(_G.AntiHubThreads, t_buy)
+
+-- 4. DIRECT BATCH AUTO SELL (Exact Server Contract & Clean UI sync)
+local t_sell = task.spawn(function()
+    while true do
+        if Config.AutoSell then
+            pcall(function()
+                local units = GetRealPlayerUnits()
+                local toSellUUIDs = {}
+
+                for _, u in ipairs(units) do
+                    if not u.Locked and Config.SelectedSellRarities[u.Rarity] then
+                        table.insert(toSellUUIDs, u.Id)
+                    end
+                end
+
+                if #toSellUUIDs > 0 then
+                    -- If Selection/Animes UI is open, sync checked states
+                    local pgui = LocalPlayer:FindFirstChild("PlayerGui")
+                    local mainUI = pgui and pgui:FindFirstChild("MainUI")
+                    local frames = mainUI and mainUI:FindFirstChild("Frames")
+                    local selScroll = frames and frames:FindFirstChild("Selection") and frames.Selection:FindFirstChild("Frame") and frames.Selection.Frame:FindFirstChild("Main") and frames.Selection.Frame.Main:FindFirstChild("ScrollingFrame")
+                    
+                    if selScroll then
+                        for _, uuid in ipairs(toSellUUIDs) do
+                            local card = selScroll:FindFirstChild(uuid)
+                            if card and card:FindFirstChild("Frame") and card.Frame:FindFirstChild("Checked") then
+                                card.Frame.Checked.Visible = true
+                            end
+                        end
+                    end
+
+                    -- Fire direct sell remote
+                    if Remotes and Remotes:FindFirstChild("Characters") and Remotes.Characters:FindFirstChild("Sell") then
+                        Remotes.Characters.Sell:FireServer(toSellUUIDs)
+                    end
+                end
+            end)
+        end
+        task.wait(2.0)
+    end
+end)
+table.insert(_G.AntiHubThreads, t_sell)
+
+-- 5. SMART AUTO UPGRADE (Checks Gold & Prices)
+local t_up = task.spawn(function()
+    while true do
+        if Config.AutoUpgrade then
+            pcall(function()
+                local pgui = LocalPlayer:FindFirstChild("PlayerGui")
+                local mainUI = pgui and pgui:FindFirstChild("MainUI")
+                local upFrame = mainUI and mainUI:FindFirstChild("Frames") and mainUI.Frames:FindFirstChild("Upgrade")
+                local upMain = upFrame and upFrame:FindFirstChild("Frame") and upFrame.Frame:FindFirstChild("Main")
+                
+                local currentGold = GetPlayerGold()
+                local upgradeRemote = Remotes and Remotes:FindFirstChild("Upgrade")
+
+                if upgradeRemote and upMain then
+                    local function CheckAndUpgrade(statName, uiNodeName)
+                        local statSection = upMain:FindFirstChild(uiNodeName)
+                        if statSection then
+                            local goldBtnFrame = statSection:FindFirstChild("Buttons") and statSection.Buttons:FindFirstChild("Gold")
+                            local priceLabel = goldBtnFrame and goldBtnFrame:FindFirstChild("Frame") and goldBtnFrame.Frame:FindFirstChild("TextLabel")
+                            
+                            if priceLabel then
+                                local priceText = priceLabel.Text:gsub("%$", ""):gsub(",", ""):gsub(" ", "")
+                                local priceNum = tonumber(priceText) or 0
+                                
+                                if priceNum > 0 and currentGold >= priceNum then
+                                    upgradeRemote:FireServer("Gold", statName)
+                                    task.wait(0.3)
+                                end
+                            end
+                        end
+                    end
+
+                    if Config.SelectedUpgrades["Gold"] then CheckAndUpgrade("Gold", "Gold") end
+                    if Config.SelectedUpgrades["Luck"] then CheckAndUpgrade("Luck", "Luck") end
+                    if Config.SelectedUpgrades["Slots"] then CheckAndUpgrade("Slots", "Slot") end
+                    if Config.SelectedUpgrades["Inventory"] then CheckAndUpgrade("Inventory", "Inventory") end
+                end
+            end)
+        end
+        task.wait(1.5)
+    end
+end)
+table.insert(_G.AntiHubThreads, t_up)
+
+
+
+-- 8. AUTO SPIN WHEEL
+local t_spin = task.spawn(function()
+    while true do
+        if Config.AutoSpinWheel then
+            pcall(function()
+                local pgui = LocalPlayer:FindFirstChild("PlayerGui")
+                local mainUI = pgui and pgui:FindFirstChild("MainUI")
+                local spinFrame = mainUI and mainUI:FindFirstChild("Frames") and mainUI.Frames:FindFirstChild("SpinWheel")
+                local freeSpinLabel = spinFrame and spinFrame:FindFirstChild("FreeSpin")
+                
+                local canSpin = false
+                if freeSpinLabel then
+                    local txt = string.lower(freeSpinLabel.Text)
+                    if string.find(txt, "free spin now") or string.find(txt, "ready") or string.find(txt, "00:00:00") then
+                        canSpin = true
+                    end
+                else
+                    canSpin = true
+                end
+
+                if canSpin then
+                    if Remotes and Remotes:FindFirstChild("SpinWheel") and Remotes.SpinWheel:FindFirstChild("Spin") then
+                        Remotes.SpinWheel.Spin:FireServer()
+                    end
+                end
+            end)
+        end
+        task.wait(4.0)
+    end
+end)
+table.insert(_G.AntiHubThreads, t_spin)
+
+-- 9. AUTO BATTLEPASS REWARDS & QUESTS
+local t_bp = task.spawn(function()
+    while true do
+        if Config.AutoClaimBPRewards then
+            pcall(function()
+                if Modules and Modules:FindFirstChild("Battlepass") and Modules.Battlepass:FindFirstChild("Claim") then
+                    Modules.Battlepass.Claim:FireServer()
+                end
+            end)
+        end
+
+        if Config.AutoClaimBPQuests then
+            pcall(function()
+                local bpQuestModule = Modules and Modules:FindFirstChild("Battlepass") and Modules.Battlepass:FindFirstChild("BattlepassQuest")
+                if bpQuestModule then
+                    local getQuestData = bpQuestModule:FindFirstChild("GetQuestData")
+                    local claimQuest = bpQuestModule:FindFirstChild("ClaimQuest")
+                    
+                    if getQuestData and claimQuest then
+                        local questData = getQuestData:InvokeServer()
+                        if typeof(questData) == "table" then
+                            for qId, qInfo in pairs(questData) do
+                                if qInfo.Completed or qInfo.CanClaim or (qInfo.Progress and qInfo.Target and qInfo.Progress >= qInfo.Target) then
+                                    claimQuest:FireServer(qId)
+                                end
+                            end
+                        else
+                            claimQuest:FireServer()
+                        end
+                    end
+                end
+            end)
+        end
+
+        task.wait(4.0)
+    end
+end)
+table.insert(_G.AntiHubThreads, t_bp)
